@@ -1,98 +1,249 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Fitbit API Integration - NestJS
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API backend desenvolvida com NestJS para integração com a API do Fitbit, permitindo autenticação OAuth2 e coleta de dados de múltiplos dispositivos Fitbit.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 📋 Sobre o Projeto
 
-## Description
+Esta aplicação permite conectar múltiplas contas Fitbit, autenticar usuários via OAuth2 e buscar dados de atividades físicas, sono e outros métricas de saúde. Ideal para projetos que necessitam integrar dados de wearables para análise, dashboards ou pesquisas.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🚀 Funcionalidades
 
-## Project setup
+- ✅ Autenticação OAuth2 com Fitbit
+- ✅ Suporte a múltiplas contas/dispositivos
+- ✅ Busca de dados de atividades diárias
+- ✅ Busca de dados de sono
+- ✅ Time Series (dados agregados por período)
+- ✅ Intraday (dados minuto a minuto)*
+- ✅ Renovação automática de tokens
 
-```bash
-$ npm install
-```
+**Nota*: Dados intraday requerem aplicação tipo "Personal" ou aprovação especial do Fitbit.
 
-## Compile and run the project
+## 🛠️ Tecnologias
 
-```bash
-# development
-$ npm run start
+- [NestJS](https://nestjs.com/) - Framework Node.js
+- [TypeScript](https://www.typescriptlang.org/) - Linguagem
+- [Axios](https://axios-http.com/) - Cliente HTTP
+- [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/) - API de integração
 
-# watch mode
-$ npm run start:dev
+## 📦 Instalação
 
-# production mode
-$ npm run start:prod
-```
+### Pré-requisitos
 
-## Run tests
+- Node.js (versão 16 ou superior)
+- npm ou yarn
+- Conta de desenvolvedor no Fitbit
 
-```bash
-# unit tests
-$ npm run test
+### Passo 1: Clone o repositório
 
-# e2e tests
-$ npm run test:e2e
+git clone <seu-repositorio>
+cd fitbit-api-nestjs
 
-# test coverage
-$ npm run test:cov
-```
+text
 
-## Deployment
+### Passo 2: Instale as dependências
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+npm install
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+text
 
-```bash
-$ npm install -g mau
-$ mau deploy
-```
+### Passo 3: Configure as variáveis de ambiente
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Crie um arquivo `.env` na raiz do projeto:
 
-## Resources
+FITBIT_CLIENT_ID=seu_client_id_aqui
+FITBIT_CLIENT_SECRET=seu_client_secret_aqui
+PORT=3003
 
-Check out a few resources that may come in handy when working with NestJS:
+text
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Passo 4: Registre sua aplicação no Fitbit
 
-## Support
+1. Acesse [Fitbit Developer](https://dev.fitbit.com/apps)
+2. Clique em "Register a new app"
+3. Preencha o formulário:
+   - **OAuth 2.0 Application Type**: `Server`
+   - **Redirect URL**: `http://localhost:3003/fitbit/callback`
+   - **Default Access Type**: `Read Only`
+4. Copie o **Client ID** e **Client Secret** para o arquivo `.env`
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 🎯 Como Usar
 
-## Stay in touch
+### Iniciar o servidor
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Desenvolvimento
+npm run start:dev
 
-## License
+Produção
+npm run build
+npm run start:prod
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+text
+
+O servidor estará rodando em `http://localhost:3003`
+
+### Autenticação
+
+#### 1. Iniciar fluxo OAuth2
+
+Acesse no navegador:
+http://localhost:3003/fitbit/auth
+
+text
+
+Você será redirecionado para a página de login do Fitbit. Faça login e autorize a aplicação.
+
+#### 2. Receber tokens
+
+Após autorizar, você receberá uma resposta JSON com:
+{
+"message": "Autenticação bem-sucedida!",
+"accessToken": "eyJhbGci...",
+"refreshToken": "a1b2c3d4...",
+"userId": "ABC123",
+"expiresIn": 28800
+}
+
+text
+
+**Importante**: Guarde o `accessToken` e `refreshToken` para fazer as próximas requisições.
+
+## 📚 Endpoints
+
+### 🔐 Autenticação
+
+#### GET `/fitbit/auth`
+Inicia o fluxo de autenticação OAuth2
+
+#### GET `/fitbit/callback`
+Endpoint de callback do OAuth2 (não chamar manualmente)
+
+#### GET `/fitbit/refresh`
+Renova o access token expirado
+
+**Query Params:**
+- `refreshToken` (obrigatório)
+
+**Exemplo:**
+GET /fitbit/refresh?refreshToken=seu_refresh_token
+
+text
+
+### 📊 Dados de Atividade
+
+#### GET `/fitbit/activity`
+Busca resumo de atividades de um dia específico
+
+**Query Params:**
+- `accessToken` (obrigatório)
+- `date` (opcional, formato: YYYY-MM-DD, padrão: hoje)
+
+**Exemplo:**
+GET /fitbit/activity?accessToken=SEU_TOKEN&date=2024-11-24
+
+text
+
+#### GET `/fitbit/time-series`
+Busca dados agregados em um intervalo de datas
+
+**Query Params:**
+- `accessToken` (obrigatório)
+- `resource` (obrigatório): `steps`, `calories`, `distance`, `floors`, `elevation`, `minutesSedentary`, `minutesLightlyActive`, `minutesFairlyActive`, `minutesVeryActive`, `activityCalories`
+- `startDate` (obrigatório, formato: YYYY-MM-DD)
+- `endDate` (obrigatório, formato: YYYY-MM-DD)
+
+**Exemplo:**
+GET /fitbit/time-series?accessToken=SEU_TOKEN&resource=steps&startDate=2024-11-01&endDate=2024-11-24
+
+text
+
+**Resposta:**
+{
+"activities-steps": [
+{
+"dateTime": "2024-11-01",
+"value": "8234"
+},
+{
+"dateTime": "2024-11-02",
+"value": "10521"
+}
+]
+}
+
+text
+
+#### GET `/fitbit/intraday`
+Busca dados minuto a minuto (máximo 24h, requer permissão especial)
+
+**Query Params:**
+- `accessToken` (obrigatório)
+- `resource` (obrigatório): `steps`, `calories`, `distance`, `floors`, `elevation`
+- `startDate` (obrigatório, formato: YYYY-MM-DD)
+- `endDate` (obrigatório, formato: YYYY-MM-DD)
+- `detailLevel` (opcional): `1min` ou `15min` (padrão: `1min`)
+- `startTime` (opcional, formato: HH:MM)
+- `endTime` (opcional, formato: HH:MM)
+
+**Exemplo:**
+GET /fitbit/intraday?accessToken=SEU_TOKEN&resource=steps&startDate=2024-11-24&endDate=2024-11-24&detailLevel=15min&startTime=08:00&endTime=18:00
+
+text
+
+### 😴 Dados de Sono
+
+#### GET `/fitbit/sleep`
+Busca dados de sono de um dia específico
+
+**Query Params:**
+- `accessToken` (obrigatório)
+- `date` (opcional, formato: YYYY-MM-DD, padrão: hoje)
+
+**Exemplo:**
+GET /fitbit/sleep?accessToken=SEU_TOKEN&date=2024-11-24
+
+text
+
+## 🔄 Trabalhando com Múltiplas Contas
+
+Para coletar dados de múltiplos dispositivos/usuários:
+
+1. **Autentique cada conta separadamente**:
+   - Acesse `/fitbit/auth` para conta 1
+   - Faça logout do Fitbit no navegador (ou use aba anônima)
+   - Acesse `/fitbit/auth` novamente para conta 2
+
+2. **Armazene os tokens de cada usuário**:
+const usuarios = [
+{
+userId: "ABC123",
+accessToken: "token_usuario_1",
+refreshToken: "refresh_token_1"
+},
+{
+userId: "XYZ789",
+accessToken: "token_usuario_2",
+refreshToken: "refresh_token_2"
+}
+];
+
+text
+
+3. **Faça requisições usando o token correspondente** para cada usuário
+
+## ⚠️ Limitações e Considerações
+
+### Dados Intraday (403 Forbidden)
+Aplicações do tipo "Server" **não têm acesso** a dados intraday por padrão. Para obter acesso:
+- Solicite permissão especial em https://dev.fitbit.com/build/reference/web-api/intraday/
+- Ou use aplicação tipo "Personal" (apenas para seus próprios dados)
+
+### Rate Limits
+A API do Fitbit possui limites de requisições:
+- **150 requisições por hora** por usuário
+- **Intraday**: 1 requisição por segundo
+
+### Expiração de Tokens
+- Access tokens expiram em **8 horas**
+- Use o endpoint `/fitbit/refresh` para renovar tokens expirados
+
+Desenvolvido usando NestJS
