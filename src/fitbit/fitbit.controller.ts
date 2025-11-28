@@ -391,5 +391,25 @@ async getHeartRateIntraday(
     this.sessionService.endSession(sessionId);
     return { message: 'Sessão encerrada' };
   }
+
+  @Get('week')
+  async getWeekData(
+    @Query('accessToken') accessToken: string,
+    @Query('weekStart') weekStart: string, // yyyy-MM-dd
+  ) {
+    if (!accessToken || !weekStart) {
+      return { error: 'Parâmetros obrigatórios: accessToken, weekStart (yyyy-MM-dd)' };
+    }
+
+    try {
+      const data = await this.fitbitService.getWeekDataByDay(accessToken, weekStart);
+      return data;
+    } catch (error) {
+      return {
+        error: 'Erro ao buscar dados da semana',
+        details: error.message,
+      };
+    }
+  }
 }
 
