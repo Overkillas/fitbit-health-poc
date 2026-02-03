@@ -172,6 +172,31 @@ text
 
 text
 
+#### GET `/fitbit/week`
+Busca dados de atividade e sono de uma semana específica, agregados **por dia**.
+
+**Query Params:**
+- `accessToken` (obrigatório)
+- `weekStart` (obrigatório, formato: YYYY-MM-DD) → data de início da semana (por exemplo, segunda-feira)
+
+**Exemplo:**
+GET /fitbit/week?accessToken=SEU_TOKEN&weekStart=2024-11-18
+
+**Resposta (exemplo simplificado):**
+[
+  {
+    "date": "2024-11-18",
+    "activity": { ... }, // mesmo formato do /fitbit/activity
+    "sleep": { ... }     // mesmo formato do /fitbit/sleep
+  },
+  {
+    "date": "2024-11-19",
+    "activity": { ... },
+    "sleep": { ... }
+  }
+  // até completar os 7 dias da semana
+]
+
 #### GET `/fitbit/intraday`
 Busca dados minuto a minuto (máximo 24h, requer permissão especial)
 
