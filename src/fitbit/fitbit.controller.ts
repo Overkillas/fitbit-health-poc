@@ -3,8 +3,9 @@ import { Response } from 'express';
 import { FitbitService } from './fitbit.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Subject, Observable, interval } from 'rxjs';
-import { switchMap, map } from 'rxjs/operators'; // Importe separado
+import { switchMap, map } from 'rxjs/operators';
 import { SessionService } from './session.service';
+import { UsersService } from '../users/users.service';
 
 interface MessageEvent {
   data: string | object;
@@ -31,26 +32,53 @@ export class FitbitController {
     private readonly fitbitService: FitbitService,
     private readonly sessionService: SessionService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly usersService: UsersService,
   ) {}
 
   // Inicia o fluxo OAuth2
   @Get('auth')
-  async initiateAuth(@Res() res: Response) {
-    const authUrl = this.fitbitService.getAuthorizationUrl();
+  async initiateAuth(
+    @Query('userId') userId: string,
+    @Res() res: Response,
+  ) {
+    const authUrl = this.fitbitService.getAuthorizationUrl(userId);
     res.redirect(authUrl);
   }
 
   // Callback após autorização
   @Get('callback')
-  async handleCallback(@Query('code') code: string, @Res() res: Response) {
+  async handleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
     if (!code) {
       return res.status(400).json({ error: 'Código de autorização não fornecido' });
     }
 
     try {
       const tokens = await this.fitbitService.exchangeCodeForTokens(code);
-      
-      // Retorna os tokens (depois você salvará no banco)
+
+      // Se tem state (userId), salva automaticamente no banco
+      if (state) {
+        const userId = parseInt(state, 10);
+        if (!isNaN(userId)) {
+          const expiresAt = new Date();
+          expiresAt.setSeconds(expiresAt.getSeconds() + tokens.expires_in);
+
+          await this.usersService.updateFitbitTokens(userId, {
+            fitbitUserId: tokens.user_id,
+            fitbitAccessToken: tokens.access_token,
+            fitbitRefreshToken: tokens.refresh_token,
+            fitbitTokenExpiresAt: expiresAt,
+          });
+
+          // Redireciona para página de sucesso
+          return res.redirect(`/fitbit/connect?success=true&userId=${userId}`);
+        }
+      }
+
+      // Caso sem userId, retorna JSON como antes
       res.json({
         message: 'Autenticação bem-sucedida!',
         accessToken: tokens.access_token,
@@ -59,11 +87,20 @@ export class FitbitController {
         expiresIn: tokens.expires_in,
       });
     } catch (error) {
-      res.status(500).json({ 
+      if (state) {
+        return res.redirect(`/fitbit/connect?success=false&error=${encodeURIComponent(error.message)}`);
+      }
+      res.status(500).json({
         error: 'Erro na autenticação',
-        details: error.message 
+        details: error.message,
       });
     }
+  }
+
+  // Página para conectar Fitbit
+  @Get('connect')
+  async connectPage(@Res() res: Response) {
+    res.sendFile('fitbit-connect.html', { root: 'public' });
   }
 
   // Busca dados de atividade

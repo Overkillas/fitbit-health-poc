@@ -30,7 +30,7 @@ export class FitbitService {
   }
 
   // Gera URL de autorização
-  getAuthorizationUrl(): string {
+  getAuthorizationUrl(state?: string): string {
     const baseUrl = 'https://www.fitbit.com/oauth2/authorize';
     const params = new URLSearchParams({
       client_id: this.clientId,
@@ -38,7 +38,11 @@ export class FitbitService {
       scope: this.scope,
       redirect_uri: this.redirectUri,
     });
-    
+
+    if (state) {
+      params.append('state', state);
+    }
+
     return `${baseUrl}?${params.toString()}`;
   }
 
