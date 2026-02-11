@@ -120,6 +120,13 @@ export class UsersController {
     });
   }
 
+  @Get(':id/patients/fitbit/profile')
+  async getDoctorPatientsProfile(
+    @Param('id', ParseIntPipe) doctorId: number,
+  ) {
+    return this.usersService.getDoctorPatientsProfiles(doctorId);
+  }
+
   @Get(':id/patients/fitbit/all')
   async getDoctorPatientsAllData(
     @Param('id', ParseIntPipe) doctorId: number,
@@ -197,6 +204,24 @@ export class UsersController {
       query.startTime,
       query.endTime,
     );
+  }
+
+  @Get(':id/fitbit/profile')
+  async getUserProfile(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.getUserProfile(id);
+  }
+
+  @Get(':id/fitbit/devices')
+  async getUserDevices(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.getUserDevices(id);
+  }
+
+  @Get(':id/fitbit/sync-history')
+  async getSyncHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getSyncHistory(id, limit ? parseInt(limit) : 20);
   }
 
   @Get(':id/fitbit/all')

@@ -1,24 +1,30 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './entities/user.entity';
+import { SyncHistory } from './entities/sync-history.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FitbitService } from '../fitbit/fitbit.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   private readonly SALT_ROUNDS = 10;
 
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(SyncHistory)
+    private readonly syncHistoryRepository: Repository<SyncHistory>,
     private readonly fitbitService: FitbitService,
   ) {}
 
@@ -403,5 +409,112 @@ export class UsersService {
     );
 
     return results;
+  }
+
+  async getUserProfile(userId: number): Promise<any> {
+    const user = await this.findByIdOrFail(userId);
+    const accessToken = await this.getValidAccessToken(user);
+    return this.fitbitService.getUserProfile(accessToken);
+  }
+
+  async getDoctorPatientsProfiles(doctorId: number): Promise<any[]> {
+    const patients = await this.findPatientsByDoctor(doctorId);
+    const patientsWithFitbit = patients.filter((p) => p.fitbitAccessToken);
+
+    if (patientsWithFitbit.length === 0) {
+      return [];
+    }
+
+    const results = await Promise.all(
+      patientsWithFitbit.map(async (patient) => {
+        try {
+          const data = await this.getUserProfile(patient.id);
+          return { userId: patient.id, userName: patient.name, success: true, data };
+        } catch (error) {
+          return {
+            userId: patient.id,
+            userName: patient.name,
+            success: false,
+            error: error.message || 'Failed to fetch profile',
+          };
+        }
+      }),
+    );
+
+    return results;
+  }
+
+  async getUserDevices(userId: number): Promise<any> {
+    const user = await this.findByIdOrFail(userId);
+    const accessToken = await this.getValidAccessToken(user);
+    const devices = await this.fitbitService.getUserDevices(accessToken);
+
+    // Salva sync history para cada dispositivo com lastSyncTime novo
+    for (const device of devices) {
+      if (device.lastSyncTime) {
+        const syncTime = new Date(device.lastSyncTime);
+        const existing = await this.syncHistoryRepository.findOne({
+          where: {
+            userId,
+            syncTime,
+            deviceName: device.deviceVersion || null,
+          },
+        });
+
+        if (!existing) {
+          await this.syncHistoryRepository.save({
+            userId,
+            syncTime,
+            deviceName: device.deviceVersion || null,
+            deviceType: device.type || null,
+            battery: device.battery || null,
+          });
+        }
+      }
+    }
+
+    return devices;
+  }
+
+  async getSyncHistory(
+    userId: number,
+    limit: number = 20,
+  ): Promise<SyncHistory[]> {
+    await this.findByIdOrFail(userId);
+    return this.syncHistoryRepository.find({
+      where: { userId },
+      order: { syncTime: 'DESC' },
+      take: limit,
+    });
+  }
+
+  @Cron('0 */10 * * * *')
+  async handleSyncCron() {
+    this.logger.log('Verificando sync dos dispositivos Fitbit...');
+
+    const connectedUsers = await this.usersRepository.find({
+      where: { fitbitAccessToken: Not(IsNull()) },
+    });
+
+    if (connectedUsers.length === 0) {
+      this.logger.log('Nenhum usuário com Fitbit conectado.');
+      return;
+    }
+
+    let synced = 0;
+    for (const user of connectedUsers) {
+      try {
+        await this.getUserDevices(user.id);
+        synced++;
+      } catch (error) {
+        this.logger.warn(
+          `Falha ao buscar devices do usuário ${user.id}: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Sync check finalizado: ${synced}/${connectedUsers.length} usuários verificados.`,
+    );
   }
 }
