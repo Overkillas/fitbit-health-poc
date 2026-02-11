@@ -22,7 +22,7 @@ export class FitbitService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri = 'http://localhost:3003/fitbit/callback';
-  private readonly scope = 'activity heartrate sleep profile';
+  private readonly scope = 'activity heartrate sleep profile settings weight';
 
   constructor(private configService: ConfigService) {
     this.clientId = this.configService.get<string>('FITBIT_CLIENT_ID')!;
@@ -363,6 +363,42 @@ export class FitbitService {
     }
 
     return result;
+  }
+
+  // Busca perfil do usuário no Fitbit
+  async getUserProfile(accessToken: string) {
+    const url = 'https://api.fitbit.com/1/user/-/profile.json';
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar perfil:', error.response?.data);
+      throw error;
+    }
+  }
+
+  // Busca dispositivos do usuário (inclui lastSyncTime)
+  async getUserDevices(accessToken: string) {
+    const url = 'https://api.fitbit.com/1/user/-/devices.json';
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar dispositivos:', error.response?.data);
+      throw error;
+    }
   }
 
 }
