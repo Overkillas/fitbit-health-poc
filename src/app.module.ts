@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { FitbitModule } from './fitbit/fitbit.module';
 import { UsersModule } from './users/users.module';
 import configuration from './config/configuration';
@@ -26,6 +27,7 @@ import configuration from './config/configuration';
       }),
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     UsersModule,
     FitbitModule,
   ],
