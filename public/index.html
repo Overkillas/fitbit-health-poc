@@ -192,6 +192,7 @@
           <button class="tab active" onclick="switchDataTab('activity', this)">Atividade</button>
           <button class="tab" onclick="switchDataTab('sleep', this)">Sono</button>
           <button class="tab" onclick="switchDataTab('week', this)">Semana</button>
+          <button class="tab" onclick="switchDataTab('profile', this)">Perfil</button>
         </div>
         <div id="patientsDataContent"><div class="loading"><div class="spinner"></div><p>Selecione um médico</p></div></div>
       </div>
@@ -235,6 +236,7 @@
     const API_BASE = 'http://172.18.9.5:3003';
     let allUsers = [];
     let currentDataTab = 'activity';
+    const deviceSyncCache = {}; // userId -> { lastSyncTime, devices }
 
     // ===== Navigation =====
     function showPage(page) {
@@ -379,18 +381,31 @@
       container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carregando...</p></div>';
 
       try {
-        let endpoint = currentDataTab === 'week'
-          ? `${API_BASE}/users/${doctorId}/patients/fitbit/week?weekStart=${date}`
-          : `${API_BASE}/users/${doctorId}/patients/fitbit/${currentDataTab}${date ? '?date=' + date : ''}`;
+        let endpoint;
+        if (currentDataTab === 'profile') {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/profile`;
+        } else if (currentDataTab === 'week') {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/week?weekStart=${date}`;
+        } else {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/${currentDataTab}${date ? '?date=' + date : ''}`;
+        }
 
         const response = await fetch(endpoint);
         const data = await response.json();
 
         if (data.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum paciente com Fitbit</h3></div>'; return; }
 
+        // Busca devices de todos os pacientes em paralelo para mostrar lastSync
+        if (currentDataTab !== 'profile') {
+          await Promise.all(
+            data.filter(p => p.success).map(p => fetchUserDevices(p.userId))
+          );
+        }
+
         if (currentDataTab === 'activity') renderActivityData(data, container);
         else if (currentDataTab === 'sleep') renderSleepData(data, container);
         else if (currentDataTab === 'week') renderWeekData(data, container);
+        else if (currentDataTab === 'profile') renderProfileData(data, container);
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
@@ -400,7 +415,7 @@
         const name = user?.name || `Paciente ${patient.userId}`;
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const s = patient.data.summary || {};
-        return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
           <div class="data-item"><div class="value">${s.steps?.toLocaleString() || 0}</div><div class="label">Passos</div></div>
           <div class="data-item"><div class="value">${s.caloriesOut?.toLocaleString() || 0}</div><div class="label">Calorias</div></div>
           <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
@@ -416,7 +431,7 @@
         const name = user?.name || `Paciente ${patient.userId}`;
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const s = patient.data.summary || {};
-        return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
           <div class="data-item"><div class="value">${Math.floor((s.totalMinutesAsleep||0)/60)}h${(s.totalMinutesAsleep||0)%60}m</div><div class="label">Dormindo</div></div>
           <div class="data-item"><div class="value">${Math.floor((s.totalTimeInBed||0)/60)}h${(s.totalTimeInBed||0)%60}m</div><div class="label">Na Cama</div></div>
           <div class="data-item"><div class="value">${patient.data.sleep?.[0]?.efficiency || '-'}%</div><div class="label">Eficiência</div></div>
@@ -431,11 +446,34 @@
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const week = patient.data || [];
         const totalSteps = week.reduce((sum, d) => sum + (d.activity?.summary?.steps || 0), 0);
-        return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-connected">7 dias</span></div><div class="patient-body">
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">7 dias</span></div><div class="patient-body">
           <div class="data-grid"><div class="data-item"><div class="value">${totalSteps.toLocaleString()}</div><div class="label">Total Passos</div></div><div class="data-item"><div class="value">${Math.round(totalSteps/7).toLocaleString()}</div><div class="label">Média/Dia</div></div></div>
           <table style="margin-top:16px;font-size:13px"><thead><tr><th>Data</th><th>Passos</th><th>Calorias</th></tr></thead><tbody>
           ${week.map(d => `<tr><td>${formatDate(d.date)}</td><td>${d.activity?.summary?.steps?.toLocaleString()||'-'}</td><td>${d.activity?.summary?.caloriesOut?.toLocaleString()||'-'}</td></tr>`).join('')}
           </tbody></table></div></div>`;
+      }).join('');
+    }
+
+    function renderProfileData(patientsData, container) {
+      container.innerHTML = patientsData.map(patient => {
+        const name = patient.userName || `Paciente ${patient.userId}`;
+        if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+        const p = patient.data?.user || {};
+        const age = p.dateOfBirth ? Math.floor((new Date() - new Date(p.dateOfBirth)) / 31557600000) : '-';
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3><div style="font-size:12px;opacity:0.85;margin-top:2px">${p.fullName || ''}</div></div><span class="badge badge-connected">Perfil</span></div><div class="patient-body"><div class="data-grid">
+          <div class="data-item highlight"><div class="value">${age}</div><div class="label">Idade</div></div>
+          <div class="data-item"><div class="value">${p.gender || '-'}</div><div class="label">Gênero</div></div>
+          <div class="data-item"><div class="value">${p.height ? p.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
+          <div class="data-item"><div class="value">${p.weight ? p.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthWalking ? (p.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthRunning ? (p.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
+          <strong>Data de Nasc.:</strong> ${p.dateOfBirth || '-'} &nbsp;|&nbsp;
+          <strong>Timezone:</strong> ${p.timezone || '-'} &nbsp;|&nbsp;
+          <strong>País:</strong> ${p.country || '-'}
+        </div>
+        </div></div>`;
       }).join('');
     }
 
@@ -481,11 +519,24 @@
 
         if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum dado encontrado</h3></div>'; return; }
 
-        container.innerHTML = data.map(patient => renderFullPatientData(patient)).join('');
+        // Busca devices, sync history e profile em paralelo para cada paciente
+        const syncData = {};
+        await Promise.all(
+          data.filter(p => p.userId).map(async (p) => {
+            const [devices, history, profile] = await Promise.all([
+              fetchUserDevices(p.userId),
+              fetchSyncHistory(p.userId),
+              fetchUserProfile(p.userId),
+            ]);
+            syncData[p.userId] = { devices, history, profile };
+          })
+        );
+
+        container.innerHTML = data.map(patient => renderFullPatientData(patient, syncData[patient.userId])).join('');
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
-    function renderFullPatientData(patient) {
+    function renderFullPatientData(patient, syncInfo) {
       if (!patient.success && patient.error) {
         return `<div class="patient-data-card"><div class="patient-header"><h3>${patient.userName || 'Paciente ' + patient.userId}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
       }
@@ -501,13 +552,47 @@
       const hrZones = hrData.heartRateZones || [];
       const sleepLevels = sleepData.levels?.summary || {};
 
+      // Info do dispositivo, último sync e perfil
+      const devices = syncInfo?.devices || [];
+      const mainDevice = devices[0];
+      const lastSync = mainDevice?.lastSyncTime;
+      const profile = syncInfo?.profile?.user || {};
+
       return `
         <div class="patient-data-card">
           <div class="patient-header">
-            <h3>${patient.userName || 'Paciente ' + patient.userId}</h3>
-            <span class="badge badge-connected">${patient.date}</span>
+            <div>
+              <h3>${patient.userName || 'Paciente ' + patient.userId}</h3>
+              ${lastSync ? `<div style="font-size:11px;opacity:0.85;margin-top:2px">Último sync: ${formatSyncTime(lastSync)}</div>` : ''}
+            </div>
+            <div style="text-align:right">
+              <span class="badge badge-connected">${patient.date}</span>
+              ${mainDevice ? `<div style="font-size:11px;color:white;opacity:0.8;margin-top:4px">${mainDevice.deviceVersion || ''} - Bateria: ${mainDevice.battery || '?'}</div>` : ''}
+            </div>
           </div>
           <div class="patient-body">
+
+            <!-- PERFIL FITBIT -->
+            ${profile.fullName ? `
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                Perfil Fitbit
+              </div>
+              <div class="data-grid">
+                <div class="data-item"><div class="value" style="font-size:14px">${profile.fullName}</div><div class="label">Nome Fitbit</div></div>
+                <div class="data-item"><div class="value">${profile.dateOfBirth ? Math.floor((new Date() - new Date(profile.dateOfBirth)) / 31557600000) : '-'}</div><div class="label">Idade</div></div>
+                <div class="data-item"><div class="value">${profile.gender || '-'}</div><div class="label">Gênero</div></div>
+                <div class="data-item"><div class="value">${profile.height ? profile.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
+                <div class="data-item"><div class="value">${profile.weight ? profile.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthWalking ? (profile.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthRunning ? (profile.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+              </div>
+              <div style="margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
+                <strong>Data de Nasc.:</strong> ${profile.dateOfBirth || '-'} &nbsp;|&nbsp;
+                <strong>Timezone:</strong> ${profile.timezone || '-'} &nbsp;|&nbsp;
+                <strong>País:</strong> ${profile.country || '-'}
+              </div>
+            ` : ''}
 
             <!-- ATIVIDADE COMPLETA -->
             <div class="section-title">
@@ -593,6 +678,27 @@
               </div>
             ` : ''}
 
+            <!-- DISPOSITIVOS -->
+            ${devices.length > 0 ? `
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z"/></svg>
+                Dispositivos
+              </div>
+              <div class="data-grid">
+                ${devices.map(d => `
+                  <div class="data-item">
+                    <div class="value" style="font-size:14px">${d.deviceVersion || 'Desconhecido'}</div>
+                    <div class="label">${d.type || '-'}</div>
+                    <div style="font-size:11px;color:#666;margin-top:4px">Bateria: ${d.battery || '?'}${d.batteryLevel ? ' (' + d.batteryLevel + '%)' : ''}</div>
+                    <div style="font-size:11px;color:#667eea;margin-top:2px">Sync: ${formatSyncTime(d.lastSyncTime)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- HISTÓRICO DE SYNC -->
+            ${renderSyncHistorySection(syncInfo?.history || [])}
+
           </div>
         </div>
       `;
@@ -610,6 +716,105 @@
     function formatDateTime(dateStr) {
       if (!dateStr) return '-';
       return new Date(dateStr).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function fetchUserDevices(userId) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/devices`);
+        if (!response.ok) return null;
+        const devices = await response.json();
+        if (devices && devices.length > 0) {
+          // Pega o lastSyncTime mais recente entre todos os dispositivos
+          let latest = null;
+          for (const d of devices) {
+            if (d.lastSyncTime) {
+              const t = new Date(d.lastSyncTime);
+              if (!latest || t > latest) latest = t;
+            }
+          }
+          deviceSyncCache[userId] = { lastSyncTime: latest, devices };
+        }
+        return devices;
+      } catch (e) { return null; }
+    }
+
+    async function fetchUserProfile(userId) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/profile`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) { return null; }
+    }
+
+    async function fetchSyncHistory(userId, limit = 20) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/sync-history?limit=${limit}`);
+        if (!response.ok) return [];
+        return await response.json();
+      } catch (e) { return []; }
+    }
+
+    function formatSyncTime(dateStr) {
+      if (!dateStr) return 'Nunca';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      let relative;
+      if (diffMin < 1) relative = 'agora';
+      else if (diffMin < 60) relative = `${diffMin} min atrás`;
+      else if (diffHours < 24) relative = `${diffHours}h atrás`;
+      else relative = `${diffDays}d atrás`;
+
+      const formatted = date.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+
+      return `${formatted} (${relative})`;
+    }
+
+    function renderSyncBadge(userId) {
+      const cache = deviceSyncCache[userId];
+      if (!cache || !cache.lastSyncTime) return '';
+      return `<div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:4px">Último sync: ${formatSyncTime(cache.lastSyncTime)}</div>`;
+    }
+
+    function renderSyncHistorySection(syncHistory) {
+      if (!syncHistory || syncHistory.length === 0) {
+        return `
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+            Histórico de Sincronização
+          </div>
+          <p style="color:#666;font-size:13px">Nenhum registro de sync encontrado. Carregue os dispositivos para começar a rastrear.</p>
+        `;
+      }
+
+      return `
+        <div class="section-title">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+          Histórico de Sincronização (${syncHistory.length} registros)
+        </div>
+        <div style="max-height:300px;overflow-y:auto">
+          <table style="font-size:13px">
+            <thead><tr><th>Data/Hora do Sync</th><th>Dispositivo</th><th>Tipo</th><th>Bateria</th></tr></thead>
+            <tbody>
+              ${syncHistory.map(s => `
+                <tr>
+                  <td>${new Date(s.syncTime).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' })}</td>
+                  <td>${s.deviceName || '-'}</td>
+                  <td>${s.deviceType || '-'}</td>
+                  <td>${s.battery || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     function showAlert(message, type) {
