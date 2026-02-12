@@ -1,10 +1,10 @@
 {
   "name": "fitbit-api",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
-  "private": true,
-  "license": "UNLICENSED",
+  "description": "NestJS backend API for Fitbit health data monitoring (POC)",
+  "author": "Kaíke Petalas Nóbrega",
+  "private": false,
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
