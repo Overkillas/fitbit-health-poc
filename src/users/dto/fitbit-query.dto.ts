@@ -1,4 +1,10 @@
-import { IsDateString, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export enum FitbitDetailLevel {
   ONE_MIN = '1min',
