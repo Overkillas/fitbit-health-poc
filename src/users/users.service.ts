@@ -14,6 +14,19 @@ import { SyncHistory } from './entities/sync-history.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FitbitService } from '../fitbit/fitbit.service';
+import {
+  FitbitActivityResponse,
+  FitbitSleepResponse,
+  FitbitHeartRateResponse,
+  FitbitTimeSeriesResponse,
+  FitbitIntradayResponse,
+  FitbitProfileResponse,
+  FitbitDeviceInfo,
+  WeekDayData,
+  WeekDayError,
+  UserAllFitbitData,
+  PatientFitbitResult,
+} from '../fitbit/fitbit.types';
 
 @Injectable()
 export class UsersService {
@@ -233,19 +246,28 @@ export class UsersService {
     return user.fitbitAccessToken;
   }
 
-  async getUserActivityData(userId: number, date?: string): Promise<any> {
+  async getUserActivityData(
+    userId: number,
+    date?: string,
+  ): Promise<FitbitActivityResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getUserActivityData(accessToken, date);
   }
 
-  async getUserSleepData(userId: number, date?: string): Promise<any> {
+  async getUserSleepData(
+    userId: number,
+    date?: string,
+  ): Promise<FitbitSleepResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getUserSleepData(accessToken, date);
   }
 
-  async getUserWeekData(userId: number, weekStart: string): Promise<any> {
+  async getUserWeekData(
+    userId: number,
+    weekStart: string,
+  ): Promise<Array<WeekDayData | WeekDayError>> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getWeekDataByDay(accessToken, weekStart);
@@ -256,7 +278,7 @@ export class UsersService {
     resource: string,
     startDate: string,
     endDate: string,
-  ): Promise<any> {
+  ): Promise<FitbitTimeSeriesResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getActivityTimeSeriesByDateRange(
@@ -275,7 +297,7 @@ export class UsersService {
     detailLevel: '1min' | '15min' = '1min',
     startTime?: string,
     endTime?: string,
-  ): Promise<any> {
+  ): Promise<FitbitIntradayResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getActivityIntradayByDateRange(
@@ -295,7 +317,7 @@ export class UsersService {
     detailLevel: '1sec' | '1min' = '1min',
     startTime?: string,
     endTime?: string,
-  ): Promise<any> {
+  ): Promise<FitbitHeartRateResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getHeartRateIntraday(
@@ -311,11 +333,14 @@ export class UsersService {
     userIds: number[],
     dataType: 'activity' | 'sleep' | 'week',
     params: { date?: string; weekStart?: string },
-  ): Promise<any[]> {
+  ): Promise<PatientFitbitResult[]> {
     const results = await Promise.all(
       userIds.map(async (userId) => {
         try {
-          let data: any;
+          let data:
+            | FitbitActivityResponse
+            | FitbitSleepResponse
+            | Array<WeekDayData | WeekDayError>;
           switch (dataType) {
             case 'activity':
               data = await this.getUserActivityData(userId, params.date);
@@ -325,17 +350,21 @@ export class UsersService {
               break;
             case 'week':
               if (!params.weekStart) {
-                throw new BadRequestException('weekStart is required for week data');
+                throw new BadRequestException(
+                  'weekStart is required for week data',
+                );
               }
               data = await this.getUserWeekData(userId, params.weekStart);
               break;
           }
-          return { userId, success: true, data };
+          return { userId, userName: '', success: true, data };
         } catch (error) {
           return {
             userId,
+            userName: '',
             success: false,
-            error: error.message || 'Failed to fetch data',
+            error:
+              error instanceof Error ? error.message : 'Failed to fetch data',
           };
         }
       }),
@@ -348,7 +377,7 @@ export class UsersService {
     doctorId: number,
     dataType: 'activity' | 'sleep' | 'week',
     params: { date?: string; weekStart?: string },
-  ): Promise<any[]> {
+  ): Promise<PatientFitbitResult[]> {
     const patients = await this.findPatientsByDoctor(doctorId);
     const patientsWithFitbit = patients.filter((p) => p.fitbitAccessToken);
     const patientIds = patientsWithFitbit.map((p) => p.id);
@@ -360,21 +389,31 @@ export class UsersService {
     return this.getMultipleUsersFitbitData(patientIds, dataType, params);
   }
 
-  async getUserAllFitbitData(userId: number, date?: string): Promise<any> {
+  async getUserAllFitbitData(
+    userId: number,
+    date?: string,
+  ): Promise<UserAllFitbitData> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     const targetDate = date || new Date().toISOString().split('T')[0];
 
     const [activity, sleep, heartRate] = await Promise.all([
-      this.fitbitService.getUserActivityData(accessToken, targetDate).catch((e) => ({ error: e.message })),
-      this.fitbitService.getUserSleepData(accessToken, targetDate).catch((e) => ({ error: e.message })),
-      this.fitbitService.getHeartRateIntraday(accessToken, targetDate, '1min').catch((e) => ({ error: e.message })),
+      this.fitbitService
+        .getUserActivityData(accessToken, targetDate)
+        .catch((e: Error) => ({ error: e.message })),
+      this.fitbitService
+        .getUserSleepData(accessToken, targetDate)
+        .catch((e: Error) => ({ error: e.message })),
+      this.fitbitService
+        .getHeartRateIntraday(accessToken, targetDate, '1min')
+        .catch((e: Error) => ({ error: e.message })),
     ]);
 
     return {
       userId,
       userName: user.name,
       date: targetDate,
+      success: true,
       activity,
       sleep,
       heartRate,
@@ -384,7 +423,7 @@ export class UsersService {
   async getDoctorPatientsAllFitbitData(
     doctorId: number,
     date?: string,
-  ): Promise<any[]> {
+  ): Promise<UserAllFitbitData[]> {
     const patients = await this.findPatientsByDoctor(doctorId);
     const patientsWithFitbit = patients.filter((p) => p.fitbitAccessToken);
 
@@ -395,15 +434,19 @@ export class UsersService {
     const results = await Promise.all(
       patientsWithFitbit.map(async (patient) => {
         try {
-          const data = await this.getUserAllFitbitData(patient.id, date);
-          return { ...data, success: true };
+          return await this.getUserAllFitbitData(patient.id, date);
         } catch (error) {
           return {
             userId: patient.id,
             userName: patient.name,
+            date: date || new Date().toISOString().split('T')[0],
             success: false,
-            error: error.message || 'Failed to fetch data',
-          };
+            error:
+              error instanceof Error ? error.message : 'Failed to fetch data',
+            activity: { error: 'Failed to fetch' },
+            sleep: { error: 'Failed to fetch' },
+            heartRate: { error: 'Failed to fetch' },
+          } as UserAllFitbitData;
         }
       }),
     );
@@ -411,13 +454,15 @@ export class UsersService {
     return results;
   }
 
-  async getUserProfile(userId: number): Promise<any> {
+  async getUserProfile(userId: number): Promise<FitbitProfileResponse> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     return this.fitbitService.getUserProfile(accessToken);
   }
 
-  async getDoctorPatientsProfiles(doctorId: number): Promise<any[]> {
+  async getDoctorPatientsProfiles(
+    doctorId: number,
+  ): Promise<PatientFitbitResult[]> {
     const patients = await this.findPatientsByDoctor(doctorId);
     const patientsWithFitbit = patients.filter((p) => p.fitbitAccessToken);
 
@@ -429,13 +474,21 @@ export class UsersService {
       patientsWithFitbit.map(async (patient) => {
         try {
           const data = await this.getUserProfile(patient.id);
-          return { userId: patient.id, userName: patient.name, success: true, data };
+          return {
+            userId: patient.id,
+            userName: patient.name,
+            success: true,
+            data,
+          };
         } catch (error) {
           return {
             userId: patient.id,
             userName: patient.name,
             success: false,
-            error: error.message || 'Failed to fetch profile',
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Failed to fetch profile',
           };
         }
       }),
@@ -444,7 +497,7 @@ export class UsersService {
     return results;
   }
 
-  async getUserDevices(userId: number): Promise<any> {
+  async getUserDevices(userId: number): Promise<FitbitDeviceInfo[]> {
     const user = await this.findByIdOrFail(userId);
     const accessToken = await this.getValidAccessToken(user);
     const devices = await this.fitbitService.getUserDevices(accessToken);
@@ -453,22 +506,24 @@ export class UsersService {
     for (const device of devices) {
       if (device.lastSyncTime) {
         const syncTime = new Date(device.lastSyncTime);
+        const deviceName = device.deviceVersion || undefined;
         const existing = await this.syncHistoryRepository.findOne({
           where: {
             userId,
             syncTime,
-            deviceName: device.deviceVersion || null,
+            deviceName,
           },
         });
 
         if (!existing) {
-          await this.syncHistoryRepository.save({
+          const entry = this.syncHistoryRepository.create({
             userId,
             syncTime,
-            deviceName: device.deviceVersion || null,
-            deviceType: device.type || null,
-            battery: device.battery || null,
+            deviceName,
+            deviceType: device.type || undefined,
+            battery: device.battery || undefined,
           });
+          await this.syncHistoryRepository.save(entry);
         }
       }
     }
@@ -490,14 +545,14 @@ export class UsersService {
 
   @Cron('0 */10 * * * *')
   async handleSyncCron() {
-    this.logger.log('Verificando sync dos dispositivos Fitbit...');
+    this.logger.log('Checking Fitbit device sync status...');
 
     const connectedUsers = await this.usersRepository.find({
       where: { fitbitAccessToken: Not(IsNull()) },
     });
 
     if (connectedUsers.length === 0) {
-      this.logger.log('Nenhum usuário com Fitbit conectado.');
+      this.logger.log('No users with Fitbit connected.');
       return;
     }
 
@@ -508,13 +563,13 @@ export class UsersService {
         synced++;
       } catch (error) {
         this.logger.warn(
-          `Falha ao buscar devices do usuário ${user.id}: ${error.message}`,
+          `Failed to fetch devices for user ${user.id}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
 
     this.logger.log(
-      `Sync check finalizado: ${synced}/${connectedUsers.length} usuários verificados.`,
+      `Sync check completed: ${synced}/${connectedUsers.length} users verified.`,
     );
   }
 }

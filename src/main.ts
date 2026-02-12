@@ -18,15 +18,19 @@ async function bootstrap() {
     }),
   );
 
-  // Servir arquivos estáticos da pasta public
+  // Serve static files from the public directory
   app.useStaticAssets(join(__dirname, '..', 'public'));
 
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : [`http://localhost:${process.env.PORT ?? 3003}`];
+
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
-    methods: '*',
-    allowedHeaders: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
   await app.listen(process.env.PORT ?? 3003);
 }
-bootstrap();
+void bootstrap();

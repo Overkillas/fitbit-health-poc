@@ -24,6 +24,20 @@ import {
   HeartRateDetailLevel,
 } from './dto/fitbit-query.dto';
 import { LinkFitbitDto } from './dto/link-fitbit.dto';
+import { User } from './entities/user.entity';
+
+interface SanitizedUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  doctorId: number;
+  fitbitUserId: string;
+  hasFitbitConnected: boolean;
+  doctor?: SanitizedUser;
+  patients?: SanitizedUser[];
+}
 
 @Controller('users')
 export class UsersController {
@@ -105,9 +119,13 @@ export class UsersController {
     @Param('id', ParseIntPipe) doctorId: number,
     @Query() query: FitbitDateQueryDto,
   ) {
-    return this.usersService.getDoctorPatientsWithFitbitData(doctorId, 'sleep', {
-      date: query.date,
-    });
+    return this.usersService.getDoctorPatientsWithFitbitData(
+      doctorId,
+      'sleep',
+      {
+        date: query.date,
+      },
+    );
   }
 
   @Get(':id/patients/fitbit/week')
@@ -121,9 +139,7 @@ export class UsersController {
   }
 
   @Get(':id/patients/fitbit/profile')
-  async getDoctorPatientsProfile(
-    @Param('id', ParseIntPipe) doctorId: number,
-  ) {
+  async getDoctorPatientsProfile(@Param('id', ParseIntPipe) doctorId: number) {
     return this.usersService.getDoctorPatientsProfiles(doctorId);
   }
 
@@ -132,7 +148,10 @@ export class UsersController {
     @Param('id', ParseIntPipe) doctorId: number,
     @Query() query: FitbitDateQueryDto,
   ) {
-    return this.usersService.getDoctorPatientsAllFitbitData(doctorId, query.date);
+    return this.usersService.getDoctorPatientsAllFitbitData(
+      doctorId,
+      query.date,
+    );
   }
 
   // ================================
@@ -257,20 +276,20 @@ export class UsersController {
   // HELPERS
   // ================================
 
-  private sanitizeUser(user: any) {
+  private sanitizeUser(user: User): SanitizedUser {
     const {
-      password,
+      password: _password,
       fitbitAccessToken,
-      fitbitRefreshToken,
-      fitbitTokenExpiresAt,
+      fitbitRefreshToken: _fitbitRefreshToken,
+      fitbitTokenExpiresAt: _fitbitTokenExpiresAt,
       ...sanitized
     } = user;
 
     return {
       ...sanitized,
-      hasFitbitConnected: !!user.fitbitAccessToken,
+      hasFitbitConnected: !!fitbitAccessToken,
       doctor: user.doctor ? this.sanitizeUser(user.doctor) : undefined,
-      patients: user.patients?.map((p: any) => this.sanitizeUser(p)),
+      patients: user.patients?.map((p: User) => this.sanitizeUser(p)),
     };
   }
 }

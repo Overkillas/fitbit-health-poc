@@ -47,6 +47,7 @@ export class User {
   @Column({ nullable: true, unique: true })
   fitbitUserId: string;
 
+  // TODO: encrypt tokens at rest (e.g. using @nestjs/crypto or node:crypto)
   @Column({ nullable: true })
   fitbitAccessToken: string;
 
