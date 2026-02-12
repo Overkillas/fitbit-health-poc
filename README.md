@@ -1,274 +1,307 @@
+English | [Portugues](README.pt-BR.md)
+
 # Fitbit API Integration - NestJS
 
-API backend desenvolvida com NestJS para integração com a API do Fitbit, permitindo autenticação OAuth2 e coleta de dados de múltiplos dispositivos Fitbit.
+> **Disclaimer: This is a Proof of Concept (POC).** This project is not production-ready. It was built to demonstrate the feasibility of integrating the Fitbit Web API with a NestJS backend for remote patient health monitoring. The following trade-offs were made intentionally to keep the focus on the core integration:
+>
+> - **No API authentication/authorization** — endpoints are unprotected. The POC focuses on demonstrating Fitbit OAuth2 integration, data retrieval, and the doctor-patient data flow, not on building a full auth system. In production, JWT-based authentication with role guards (DOCTOR/PATIENT) would be required.
+> - **Fitbit tokens stored as plain text** in the database (should be encrypted at rest).
+> - **`synchronize: true`** in TypeORM — auto-syncs schema from entities. In production, use migrations.
+> - **No rate limiting** — Fitbit enforces 150 req/hour per user; this API does not throttle or cache.
 
-## 📋 Sobre o Projeto
+Backend API built with NestJS for Fitbit Web API integration. A POC that allows doctors to monitor their patients' health data through Fitbit wearables (Flex 2 and Inspire HR).
 
-Esta aplicação permite conectar múltiplas contas Fitbit, autenticar usuários via OAuth2 e buscar dados de atividades físicas, sono e outros métricas de saúde. Ideal para projetos que necessitam integrar dados de wearables para análise, dashboards ou pesquisas.
+## About
 
-## 🚀 Funcionalidades
+System with doctor and patient registration, OAuth2 authentication with Fitbit, automatic health data collection, and a web interface for visualization. Doctors can view data from all linked patients in a single dashboard.
 
-- ✅ Autenticação OAuth2 com Fitbit
-- ✅ Suporte a múltiplas contas/dispositivos
-- ✅ Busca de dados de atividades diárias
-- ✅ Busca de dados de sono
-- ✅ Time Series (dados agregados por período)
-- ✅ Intraday (dados minuto a minuto)*
-- ✅ Renovação automática de tokens
+## Features
 
-**Nota*: Dados intraday requerem aplicação tipo "Personal" ou aprovação especial do Fitbit.
+- OAuth2 authentication with Fitbit (Authorization Code Grant)
+- User CRUD (doctors and patients)
+- Doctor-patient linking
+- Fitbit token persistence in PostgreSQL
+- Automatic token refresh (5-minute buffer before expiration)
+- Cron job every 10 minutes to check device sync status
+- Sync history tracking (SyncHistory entity)
+- Activity, sleep, heart rate, profile, and device data
+- Time series and intraday data (minute-by-minute)\*
+- Subscriptions (webhooks) and SSE for real-time data
+- Web interface for management and visualization
 
-## 🛠️ Tecnologias
+\* Intraday data requires a "Personal" application type or special approval from Fitbit.
 
-- [NestJS](https://nestjs.com/) - Framework Node.js
-- [TypeScript](https://www.typescriptlang.org/) - Linguagem
-- [Axios](https://axios-http.com/) - Cliente HTTP
-- [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/) - API de integração
+## Stack
 
-## 📦 Instalação
+- **Framework**: [NestJS](https://nestjs.com/) 11.x
+- **Language**: [TypeScript](https://www.typescriptlang.org/) 5.x
+- **Database**: [PostgreSQL](https://www.postgresql.org/) 16 via [TypeORM](https://typeorm.io/)
+- **HTTP Client**: [Axios](https://axios-http.com/)
+- **Scheduler**: [@nestjs/schedule](https://docs.nestjs.com/techniques/task-scheduling) (cron jobs)
+- **Events**: [@nestjs/event-emitter](https://docs.nestjs.com/techniques/events) (webhooks)
+- **API**: [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/)
 
-### Pré-requisitos
+## Installation
 
-- Node.js (versão 16 ou superior)
-- npm ou yarn
-- Conta de desenvolvedor no Fitbit
+### Prerequisites
 
-### Passo 1: Clone o repositório
+- Node.js (version 16 or higher)
+- PostgreSQL (or Docker)
+- Fitbit developer account at [dev.fitbit.com](https://dev.fitbit.com/apps)
 
-git clone <seu-repositorio>
-cd fitbit-api-nestjs
+### 1. Clone and install
 
-text
-
-### Passo 2: Instale as dependências
-
+```bash
+git clone <your-repository>
+cd fitbit-api
 npm install
+```
 
-text
+### 2. Start the database
 
-### Passo 3: Configure as variáveis de ambiente
+```bash
+docker compose up -d
+```
 
-Crie um arquivo `.env` na raiz do projeto:
+### 3. Configure environment variables
 
-FITBIT_CLIENT_ID=seu_client_id_aqui
-FITBIT_CLIENT_SECRET=seu_client_secret_aqui
+Create a `.env` file in the project root:
+
+```env
+FITBIT_CLIENT_ID=your_client_id
+FITBIT_CLIENT_SECRET=your_client_secret
+FITBIT_REDIRECT_URI=http://localhost:3003/fitbit/callback
 PORT=3003
 
-text
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=user
+DB_PASSWORD=password
+DB_NAME=fitbit_db
+```
 
-### Passo 4: Registre sua aplicação no Fitbit
+### 4. Register your Fitbit application
 
-1. Acesse [Fitbit Developer](https://dev.fitbit.com/apps)
-2. Clique em "Register a new app"
-3. Preencha o formulário:
+1. Go to [Fitbit Developer](https://dev.fitbit.com/apps)
+2. Click "Register a new app"
+3. Fill in:
    - **OAuth 2.0 Application Type**: `Server`
    - **Redirect URL**: `http://localhost:3003/fitbit/callback`
    - **Default Access Type**: `Read Only`
-4. Copie o **Client ID** e **Client Secret** para o arquivo `.env`
+4. Copy the **Client ID** and **Client Secret** to your `.env` file
 
-## 🎯 Como Usar
+### 5. Start the server
 
-### Iniciar o servidor
-
-Desenvolvimento
+```bash
+# Development
 npm run start:dev
 
-Produção
-npm run build
-npm run start:prod
+# Production
+npm run build && npm run start:prod
+```
 
-text
+The server will be running at `http://localhost:3003`
 
-O servidor estará rodando em `http://localhost:3003`
+## Web Interface
 
-### Autenticação
+The application includes a web interface accessible at `http://localhost:3003`. Available pages:
 
-#### 1. Iniciar fluxo OAuth2
+| Page | Description |
+|------|-------------|
+| **Dashboard** | Overview with counters (total users, doctors, patients, Fitbit-connected) |
+| **Users** | Full CRUD — register, edit, and remove doctors and patients. Link patients to doctors. Connect/disconnect Fitbit |
+| **Summary Data** | Select a doctor and view all patients' data by tabs: Activity, Sleep, Week, and Profile. Includes last sync badge per patient |
+| **Full Data** | Select a doctor and view all consolidated data per patient (activity + sleep + HR + profile + devices + sync history) |
 
-Acesse no navegador:
-http://localhost:3003/fitbit/auth
+Additionally, `/fitbit/connect` provides the interface for the Fitbit OAuth2 linking flow.
 
-text
+## Endpoints
 
-Você será redirecionado para a página de login do Fitbit. Faça login e autorize a aplicação.
+### Fitbit Authentication
 
-#### 2. Receber tokens
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/fitbit/auth?userId=:id` | Initiates OAuth2 flow (redirects to Fitbit) |
+| GET | `/fitbit/callback` | OAuth2 callback (called by Fitbit) |
+| POST | `/fitbit/refresh` | Refreshes access token (body: `{ "refreshToken": "..." }`) |
+| GET | `/fitbit/connect` | Web page for Fitbit connection |
 
-Após autorizar, você receberá uma resposta JSON com:
-{
-"message": "Autenticação bem-sucedida!",
-"accessToken": "eyJhbGci...",
-"refreshToken": "a1b2c3d4...",
-"userId": "ABC123",
-"expiresIn": 28800
-}
+### User CRUD
 
-text
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/users` | Create user (doctor or patient) |
+| GET | `/users` | List all users |
+| GET | `/users/doctors` | List doctors |
+| GET | `/users/patients` | List patients |
+| GET | `/users/:id` | Get user by ID |
+| PUT | `/users/:id` | Update user |
+| DELETE | `/users/:id` | Delete user |
 
-**Importante**: Guarde o `accessToken` e `refreshToken` para fazer as próximas requisições.
+### Fitbit Data per User
 
-## 📚 Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users/:id/fitbit/activity?date=YYYY-MM-DD` | Daily activity |
+| GET | `/users/:id/fitbit/sleep?date=YYYY-MM-DD` | Sleep data |
+| GET | `/users/:id/fitbit/week?weekStart=YYYY-MM-DD` | 7-day data (activity + sleep) |
+| GET | `/users/:id/fitbit/heart-rate?date=YYYY-MM-DD` | Intraday heart rate |
+| GET | `/users/:id/fitbit/time-series?resource=steps&startDate=...&endDate=...` | Time series by period |
+| GET | `/users/:id/fitbit/intraday?resource=steps&startDate=...&endDate=...` | Minute-by-minute intraday |
+| GET | `/users/:id/fitbit/profile` | Fitbit profile (name, age, height, weight) |
+| GET | `/users/:id/fitbit/devices` | Devices and last sync |
+| GET | `/users/:id/fitbit/sync-history?limit=20` | Sync history |
+| GET | `/users/:id/fitbit/all?date=YYYY-MM-DD` | All daily data (activity + sleep + HR) |
+| POST | `/users/:id/fitbit` | Link Fitbit tokens to user |
+| DELETE | `/users/:id/fitbit` | Disconnect Fitbit from user |
 
-### 🔐 Autenticação
+### Doctor View (patients' data)
 
-#### GET `/fitbit/auth`
-Inicia o fluxo de autenticação OAuth2
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users/:id/patients` | List doctor's patients |
+| GET | `/users/:id/patients/fitbit/activity?date=...` | All patients' activity |
+| GET | `/users/:id/patients/fitbit/sleep?date=...` | All patients' sleep |
+| GET | `/users/:id/patients/fitbit/week?weekStart=...` | All patients' weekly data |
+| GET | `/users/:id/patients/fitbit/profile` | All patients' Fitbit profiles |
+| GET | `/users/:id/patients/fitbit/all?date=...` | All data for all patients |
 
-#### GET `/fitbit/callback`
-Endpoint de callback do OAuth2 (não chamar manualmente)
+### Direct Endpoints (Fitbit token via header)
 
-#### GET `/fitbit/refresh`
-Renova o access token expirado
+These endpoints accept a Fitbit access token directly via `Authorization: Bearer <fitbit_token>` header, without requiring a registered user in the system.
 
-**Query Params:**
-- `refreshToken` (obrigatório)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/fitbit/activity?date=...` | Activity |
+| GET | `/fitbit/sleep?date=...` | Sleep |
+| GET | `/fitbit/week?weekStart=...` | Weekly data |
+| GET | `/fitbit/time-series?resource=...&startDate=...&endDate=...` | Time series |
+| GET | `/fitbit/intraday?resource=...&startDate=...&endDate=...` | Intraday |
+| GET | `/fitbit/heart-rate-intraday?date=...` | HR intraday |
+| POST | `/fitbit/refresh` | Refresh token (body: `{ "refreshToken": "..." }`) |
 
-**Exemplo:**
-GET /fitbit/refresh?refreshToken=seu_refresh_token
+### Sessions and Real-Time
 
-text
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/fitbit/session/:sessionId/patient` | Add patient to session |
+| DELETE | `/fitbit/session/:sessionId/patient/:patientId` | Remove patient from session |
+| SSE | `/fitbit/session/:sessionId/live` | Real-time data stream |
+| DELETE | `/fitbit/session/:sessionId` | End session |
+| POST | `/fitbit/webhook` | Receive Fitbit notifications |
 
-### 📊 Dados de Atividade
+## Data Coverage: This API vs Fitbit Web API
 
-#### GET `/fitbit/activity`
-Busca resumo de atividades de um dia específico
+Comparison between all data types available in the [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/) and what this API implements. The **Hardware Restriction** column indicates when data **cannot be collected** by the Flex 2 and/or Inspire HR models used in this POC.
 
-**Query Params:**
-- `accessToken` (obrigatório)
-- `date` (opcional, formato: YYYY-MM-DD, padrão: hoje)
+| Category | Data | Fitbit Web API | This API | Hardware Restriction (Flex 2 / Inspire HR) |
+|----------|------|:--------------:|:--------:|---------------------------------------------|
+| **Activity** | Steps | ✅ | ✅ | None |
+| | Calories | ✅ | ✅ | None |
+| | Distance | ✅ | ✅ | None |
+| | Floors | ✅ | ✅ | ⚠️ **Both lack altimeter** — returns 0 |
+| | Elevation | ✅ | ✅ | ⚠️ **Both lack altimeter** — returns 0 |
+| | Sedentary minutes | ✅ | ✅ | None |
+| | Lightly active minutes | ✅ | ✅ | None |
+| | Fairly active minutes | ✅ | ✅ | None |
+| | Very active minutes | ✅ | ✅ | None |
+| | Active Zone Minutes (AZM) | ✅ | ❌ | ⚠️ **Flex 2 no HR** — cannot collect |
+| | Activity intraday | ✅ | ✅ | None (requires Personal app) |
+| **Sleep** | Sleep summary | ✅ | ✅ | None |
+| | Stages (light/deep/REM) | ✅ | ✅ | ⚠️ **Flex 2 no HR** — returns basic sleep only (awake/asleep/restless) |
+| | Sleep time series | ✅ | ❌ | None |
+| **Heart Rate** | Daily heart rate (zones) | ✅ | ✅ | ⚠️ **Flex 2 no HR** — cannot collect |
+| | Heart rate intraday | ✅ | ✅ | ⚠️ **Flex 2 no HR** — cannot collect |
+| | Heart Rate Variability (HRV) | ✅ | ❌ | ⚠️ **Neither supports** HRV |
+| **Breathing** | Breathing rate | ✅ | ❌ | ⚠️ **Flex 2 no HR** — cannot collect |
+| **Temperature** | Skin temperature | ✅ | ❌ | ⚠️ **Both lack temp. sensor** |
+| | Core body temperature (manual) | ✅ | ❌ | None (manual entry) |
+| **Oxygen** | SpO2 | ✅ | ❌ | ⚠️ **Both lack SpO2 sensor** |
+| **Cardio Fitness** | VO2 Max | ✅ | ❌ | ⚠️ **Flex 2 no HR** — cannot calculate |
+| **Body** | Weight | ✅ | ❌ | None (scope already authorized) |
+| | Body fat | ✅ | ❌ | None (requires Aria scale) |
+| | BMI | ✅ | ❌ | None |
+| **Nutrition** | Food logs | ✅ | ❌ | None (manual entry) |
+| | Water | ✅ | ❌ | None (manual entry) |
+| **ECG** | Electrocardiogram | ✅ | ❌ | ⚠️ **Both lack ECG sensor** (Sense/Sense 2 only) |
+| **IRN** | Irregular Rhythm Notifications | ✅ | ❌ | ⚠️ **Both lack ECG sensor** (Sense/Sense 2 only) |
+| **Profile** | User data | ✅ | ✅ | None |
+| **Devices** | Device list | ✅ | ✅ | None |
+| **OAuth** | Authentication | ✅ | ✅ | None |
+| | Refresh token | ✅ | ✅ | None |
+| **Subscriptions** | Webhooks | ✅ | ✅ | None |
 
-**Exemplo:**
-GET /fitbit/activity?accessToken=SEU_TOKEN&date=2024-11-24
+**Legend**: ⚠️ = hardware limitation of the models used in this POC. The endpoint may exist in the Fitbit Web API, but the device lacks the required sensor.
 
-text
+### Coverage by Model: Flex 2 vs Inspire HR
 
-#### GET `/fitbit/time-series`
-Busca dados agregados em um intervalo de datas
+The **Flex 2** and **Inspire HR** have different sensors, which directly impacts what data can be collected.
 
-**Query Params:**
-- `accessToken` (obrigatório)
-- `resource` (obrigatório): `steps`, `calories`, `distance`, `floors`, `elevation`, `minutesSedentary`, `minutesLightlyActive`, `minutesFairlyActive`, `minutesVeryActive`, `activityCalories`
-- `startDate` (obrigatório, formato: YYYY-MM-DD)
-- `endDate` (obrigatório, formato: YYYY-MM-DD)
+#### Sensors
 
-**Exemplo:**
-GET /fitbit/time-series?accessToken=SEU_TOKEN&resource=steps&startDate=2024-11-01&endDate=2024-11-24
+| Sensor | Flex 2 | Inspire HR |
+|--------|:------:|:----------:|
+| 3-axis accelerometer | ✅ | ✅ |
+| Optical heart rate monitor | ❌ | ✅ |
+| Altimeter | ❌ | ❌ |
+| Connected GPS (via phone) | ❌ | ✅ |
+| SpO2 sensor | ❌ | ❌ |
+| Temperature sensor | ❌ | ❌ |
+| OLED display | ❌ | ✅ |
+| Water resistance | 10m | 50m |
 
-text
+#### Data Collectible via This API
 
-**Resposta:**
-{
-"activities-steps": [
-{
-"dateTime": "2024-11-01",
-"value": "8234"
-},
-{
-"dateTime": "2024-11-02",
-"value": "10521"
-}
-]
-}
+| Data | Flex 2 | Inspire HR | Endpoint | Restriction reason |
+|------|:------:|:----------:|----------|--------------------|
+| Steps | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Calories | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Distance | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Floors | ❌ | ❌ | — | No altimeter on either |
+| Active minutes | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Activity intraday | ✅ | ✅ | `/users/:id/fitbit/intraday` | |
+| Sleep (total duration) | ✅ | ✅ | `/users/:id/fitbit/sleep` | |
+| Sleep (light/deep/REM stages) | ❌ | ✅ | `/users/:id/fitbit/sleep` | Flex 2 lacks HR sensor |
+| Heart rate (24/7) | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 lacks HR sensor |
+| Heart rate intraday | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 lacks HR sensor |
+| Heart rate zones | ❌ | ✅ | `/users/:id/fitbit/activity` | Flex 2 lacks HR sensor |
+| Active Zone Minutes | ❌ | ⚠️ | — | Not implemented (Inspire HR supports it) |
+| VO2 Max | ❌ | ⚠️ | — | Not implemented (Inspire HR supports it) |
+| Breathing rate | ❌ | ⚠️ | — | Not implemented (Inspire HR supports it) |
+| Connected GPS | ❌ | ✅ | `/users/:id/fitbit/activity` | Flex 2 lacks GPS |
+| Auto exercise recognition | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| User profile | ✅ | ✅ | `/users/:id/fitbit/profile` | |
+| Devices and last sync | ✅ | ✅ | `/users/:id/fitbit/devices` | |
+| Sync history | ✅ | ✅ | `/users/:id/fitbit/sync-history` | |
+| Weekly data | ✅ | ✅ | `/users/:id/fitbit/week` | |
+| Time series | ✅ | ✅ | `/users/:id/fitbit/time-series` | |
+| SpO2 | ❌ | ❌ | — | No sensor on either |
+| Skin temperature | ❌ | ❌ | — | No sensor on either |
+| ECG | ❌ | ❌ | — | No sensor on either |
+| HRV | ❌ | ❌ | — | Neither supports it |
 
-text
+**Legend**: ✅ = available | ❌ = unavailable (no hardware) | ⚠️ = hardware supports it, but endpoint not implemented in this API
 
-#### GET `/fitbit/week`
-Busca dados de atividade e sono de uma semana específica, agregados **por dia**.
+> **Summary**: The **Inspire HR** provides significantly richer data than the **Flex 2** thanks to its heart rate sensor, which enables sleep stages, HR zones, VO2 Max, and breathing rate. The **Flex 2** is limited to accelerometer-based data (steps, distance, basic sleep). Neither model has SpO2, temperature, ECG, or altimeter sensors.
 
-**Query Params:**
-- `accessToken` (obrigatório)
-- `weekStart` (obrigatório, formato: YYYY-MM-DD) → data de início da semana (por exemplo, segunda-feira)
+## Limitations and Notes
 
-**Exemplo:**
-GET /fitbit/week?accessToken=SEU_TOKEN&weekStart=2024-11-18
-
-**Resposta (exemplo simplificado):**
-[
-  {
-    "date": "2024-11-18",
-    "activity": { ... }, // mesmo formato do /fitbit/activity
-    "sleep": { ... }     // mesmo formato do /fitbit/sleep
-  },
-  {
-    "date": "2024-11-19",
-    "activity": { ... },
-    "sleep": { ... }
-  }
-  // até completar os 7 dias da semana
-]
-
-#### GET `/fitbit/intraday`
-Busca dados minuto a minuto (máximo 24h, requer permissão especial)
-
-**Query Params:**
-- `accessToken` (obrigatório)
-- `resource` (obrigatório): `steps`, `calories`, `distance`, `floors`, `elevation`
-- `startDate` (obrigatório, formato: YYYY-MM-DD)
-- `endDate` (obrigatório, formato: YYYY-MM-DD)
-- `detailLevel` (opcional): `1min` ou `15min` (padrão: `1min`)
-- `startTime` (opcional, formato: HH:MM)
-- `endTime` (opcional, formato: HH:MM)
-
-**Exemplo:**
-GET /fitbit/intraday?accessToken=SEU_TOKEN&resource=steps&startDate=2024-11-24&endDate=2024-11-24&detailLevel=15min&startTime=08:00&endTime=18:00
-
-text
-
-### 😴 Dados de Sono
-
-#### GET `/fitbit/sleep`
-Busca dados de sono de um dia específico
-
-**Query Params:**
-- `accessToken` (obrigatório)
-- `date` (opcional, formato: YYYY-MM-DD, padrão: hoje)
-
-**Exemplo:**
-GET /fitbit/sleep?accessToken=SEU_TOKEN&date=2024-11-24
-
-text
-
-## 🔄 Trabalhando com Múltiplas Contas
-
-Para coletar dados de múltiplos dispositivos/usuários:
-
-1. **Autentique cada conta separadamente**:
-   - Acesse `/fitbit/auth` para conta 1
-   - Faça logout do Fitbit no navegador (ou use aba anônima)
-   - Acesse `/fitbit/auth` novamente para conta 2
-
-2. **Armazene os tokens de cada usuário**:
-const usuarios = [
-{
-userId: "ABC123",
-accessToken: "token_usuario_1",
-refreshToken: "refresh_token_1"
-},
-{
-userId: "XYZ789",
-accessToken: "token_usuario_2",
-refreshToken: "refresh_token_2"
-}
-];
-
-text
-
-3. **Faça requisições usando o token correspondente** para cada usuário
-
-## ⚠️ Limitações e Considerações
-
-### Dados Intraday (403 Forbidden)
-Aplicações do tipo "Server" **não têm acesso** a dados intraday por padrão. Para obter acesso:
-- Solicite permissão especial em https://dev.fitbit.com/build/reference/web-api/intraday/
-- Ou use aplicação tipo "Personal" (apenas para seus próprios dados)
+### Intraday Data (403 Forbidden)
+"Server" type applications **do not have access** to intraday data by default. To get access:
+- Request special permission at https://dev.fitbit.com/build/reference/web-api/intraday/
+- Or use a "Personal" application type (only for your own data)
 
 ### Rate Limits
-A API do Fitbit possui limites de requisições:
-- **150 requisições por hora** por usuário
-- **Intraday**: 1 requisição por segundo
+- **150 requests per hour** per user
+- **Intraday**: 1 request per second
 
-### Expiração de Tokens
-- Access tokens expiram em **8 horas**
-- Use o endpoint `/fitbit/refresh` para renovar tokens expirados
+### Token Expiration
+- Access tokens expire in **8 hours**
+- The cron job automatically refreshes tokens approaching expiration
+- Refresh tokens can be revoked if the user revokes access on Fitbit or changes their password
 
-Desenvolvido usando NestJS
+### Hardware Limitations (Flex 2 and Inspire HR)
+- **Floors/elevation**: Both lack an altimeter, endpoint returns 0
+- **Heart rate**: Flex 2 has no optical HR sensor
+- **Sleep stages**: Flex 2 returns basic sleep only (awake/asleep/restless)
+- **SpO2, temperature, ECG, HRV**: Neither model has these sensors

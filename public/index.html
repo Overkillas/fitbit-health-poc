@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fitbit Health Monitor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; min-height: 100vh; }
+
+    .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 10px; }
+    .navbar h1 { color: white; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+    .nav-links { display: flex; gap: 10px; flex-wrap: wrap; }
+    .nav-links a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 8px; transition: background 0.2s; font-size: 14px; }
+    .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
+
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .card { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 24px; }
+    .card h2 { color: #333; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+    .card h3 { color: #444; margin: 20px 0 12px; font-size: 16px; }
+
+    .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #444; font-size: 14px; }
+    .form-group input, .form-group select { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+
+    .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+    .btn-success { background: linear-gradient(135deg, #00B0B9 0%, #00CED1 100%); color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-sm { padding: 8px 16px; font-size: 12px; }
+
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f8f9fa; font-weight: 600; color: #555; font-size: 13px; text-transform: uppercase; }
+    tr:hover { background: #f8f9fa; }
+
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge-doctor { background: #e3f2fd; color: #1976d2; }
+    .badge-patient { background: #f3e5f5; color: #7b1fa2; }
+    .badge-connected { background: #e8f5e9; color: #388e3c; }
+    .badge-disconnected { background: #fff3e0; color: #f57c00; }
+
+    .alert { padding: 16px; border-radius: 8px; margin-bottom: 20px; display: none; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; }
+    .stat-card.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .stat-card.orange { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .stat-card.blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .stat-value { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+    .stat-label { font-size: 12px; opacity: 0.9; text-transform: uppercase; }
+
+    .patient-data-card { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 20px; overflow: hidden; }
+    .patient-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .patient-header h3 { font-size: 18px; }
+    .patient-body { padding: 20px; }
+
+    .data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; }
+    .data-item { text-align: center; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+    .data-item .value { font-size: 20px; font-weight: 700; color: #333; }
+    .data-item .label { font-size: 11px; color: #666; margin-top: 4px; }
+    .data-item.highlight { background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%); border: 1px solid #667eea44; }
+
+    .section-title { font-size: 14px; font-weight: 600; color: #667eea; margin: 20px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; gap: 8px; }
+    .section-title svg { width: 18px; height: 18px; }
+
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: #666; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 0; flex-wrap: wrap; }
+    .tab { padding: 12px 24px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+    .tab:hover { color: #667eea; }
+    .tab.active { color: #667eea; border-bottom-color: #667eea; }
+
+    .date-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+    .date-controls input[type="date"] { padding: 10px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+
+    .actions { display: flex; gap: 8px; }
+
+    .hr-zone { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; }
+    .hr-zone-bar { height: 8px; border-radius: 4px; flex: 1; }
+    .hr-zone-name { font-size: 12px; font-weight: 600; min-width: 80px; }
+    .hr-zone-value { font-size: 12px; color: #666; min-width: 60px; text-align: right; }
+
+    .sleep-stage { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .sleep-stage-color { width: 12px; height: 12px; border-radius: 3px; }
+    .sleep-stage-name { font-size: 13px; flex: 1; }
+    .sleep-stage-value { font-size: 13px; font-weight: 600; }
+
+    .collapsible { cursor: pointer; user-select: none; }
+    .collapsible-content { display: none; }
+    .collapsible-content.show { display: block; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <h1>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+        <path d="M12.5 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm4-8.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0 5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm-8 0a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0-5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0z"/>
+      </svg>
+      Fitbit Health Monitor
+    </h1>
+    <div class="nav-links">
+      <a href="#" class="active" onclick="showPage('dashboard')">Dashboard</a>
+      <a href="#" onclick="showPage('users')">Usuários</a>
+      <a href="#" onclick="showPage('patients-data')">Dados Resumidos</a>
+      <a href="#" onclick="showPage('full-data')">Dados Completos</a>
+      <a href="/fitbit/connect">Conectar Fitbit</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div id="alert" class="alert"></div>
+
+    <!-- Dashboard Page -->
+    <div id="page-dashboard" class="page active">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value" id="totalUsers">-</div><div class="stat-label">Total Usuários</div></div>
+        <div class="stat-card green"><div class="stat-value" id="totalDoctors">-</div><div class="stat-label">Médicos</div></div>
+        <div class="stat-card orange"><div class="stat-value" id="totalPatients">-</div><div class="stat-label">Pacientes</div></div>
+        <div class="stat-card blue"><div class="stat-value" id="totalConnected">-</div><div class="stat-label">Fitbit Conectados</div></div>
+      </div>
+      <div class="card">
+        <h2>Usuários Recentes</h2>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Tipo</th><th>Fitbit</th></tr></thead>
+            <tbody id="recentUsersTable"><tr><td colspan="5" class="loading"><div class="spinner"></div>Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Page -->
+    <div id="page-users" class="page">
+      <div class="card">
+        <h2>Cadastrar Novo Usuário</h2>
+        <form id="createUserForm" onsubmit="createUser(event)">
+          <div class="form-row">
+            <div class="form-group"><label for="name">Nome Completo</label><input type="text" id="name" required placeholder="Ex: Dr. João Silva"></div>
+            <div class="form-group"><label for="email">Email</label><input type="email" id="email" required placeholder="Ex: joao@hospital.com"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="phone">Telefone</label><input type="text" id="phone" required placeholder="Ex: +5511999999999"></div>
+            <div class="form-group"><label for="password">Senha</label><input type="password" id="password" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="role">Tipo de Usuário</label><select id="role" required onchange="toggleDoctorSelect()"><option value="DOCTOR">Médico</option><option value="PATIENT">Paciente</option></select></div>
+            <div class="form-group" id="doctorSelectGroup" style="display: none;"><label for="doctorId">Médico Responsável</label><select id="doctorId"><option value="">Sem médico (opcional)</option></select></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Cadastrar Usuário</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Lista de Usuários</h2>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Tipo</th><th>Médico</th><th>Fitbit</th><th>Ações</th></tr></thead>
+            <tbody id="usersTable"><tr><td colspan="8" class="loading"><div class="spinner"></div>Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Patients Data Page (Resumido) -->
+    <div id="page-patients-data" class="page">
+      <div class="card">
+        <h2>Visualizar Dados Resumidos</h2>
+        <div class="form-row">
+          <div class="form-group"><label for="selectDoctor">Selecione o Médico</label><select id="selectDoctor" onchange="loadDoctorPatients()"><option value="">Selecione um médico...</option></select></div>
+        </div>
+      </div>
+      <div id="patientsDataContainer" style="display: none;">
+        <div class="date-controls">
+          <label><strong>Data:</strong></label>
+          <input type="date" id="dataDate" onchange="loadPatientsData()">
+          <button class="btn btn-primary btn-sm" onclick="loadPatientsData()">Atualizar</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" onclick="switchDataTab('activity', this)">Atividade</button>
+          <button class="tab" onclick="switchDataTab('sleep', this)">Sono</button>
+          <button class="tab" onclick="switchDataTab('week', this)">Semana</button>
+          <button class="tab" onclick="switchDataTab('profile', this)">Perfil</button>
+        </div>
+        <div id="patientsDataContent"><div class="loading"><div class="spinner"></div><p>Selecione um médico</p></div></div>
+      </div>
+    </div>
+
+    <!-- Full Data Page -->
+    <div id="page-full-data" class="page">
+      <div class="card">
+        <h2>Dados Completos do Fitbit</h2>
+        <p style="color: #666; margin-bottom: 20px;">Visualize TODOS os dados disponíveis: atividade, sono, frequência cardíaca, metas e mais.</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fullDataMode">Modo de Visualização</label>
+            <select id="fullDataMode" onchange="toggleFullDataMode()">
+              <option value="single">Paciente Específico</option>
+              <option value="doctor">Todos Pacientes de um Médico</option>
+            </select>
+          </div>
+          <div class="form-group" id="fullDataDoctorGroup" style="display: none;">
+            <label for="fullDataDoctor">Selecione o Médico</label>
+            <select id="fullDataDoctor"><option value="">Selecione...</option></select>
+          </div>
+          <div class="form-group" id="fullDataPatientGroup">
+            <label for="fullDataPatient">Selecione o Paciente</label>
+            <select id="fullDataPatient"><option value="">Selecione...</option></select>
+          </div>
+          <div class="form-group">
+            <label for="fullDataDate">Data</label>
+            <input type="date" id="fullDataDate">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="loadFullData()">Carregar Dados Completos</button>
+      </div>
+
+      <div id="fullDataContent"></div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let allUsers = [];
+    let currentDataTab = 'activity';
+    const deviceSyncCache = {}; // userId -> { lastSyncTime, devices }
+
+    // ===== Navigation =====
+    function showPage(page) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+      document.getElementById(`page-${page}`).classList.add('active');
+      event.target.classList.add('active');
+
+      if (page === 'dashboard') loadDashboard();
+      if (page === 'users') loadUsersPage();
+      if (page === 'patients-data') loadPatientsDataPage();
+      if (page === 'full-data') loadFullDataPage();
+    }
+
+    // ===== Dashboard =====
+    async function loadDashboard() {
+      try {
+        const users = await fetchUsers();
+        document.getElementById('totalUsers').textContent = users.length;
+        document.getElementById('totalDoctors').textContent = users.filter(u => u.role === 'DOCTOR').length;
+        document.getElementById('totalPatients').textContent = users.filter(u => u.role === 'PATIENT').length;
+        document.getElementById('totalConnected').textContent = users.filter(u => u.hasFitbitConnected).length;
+
+        const tbody = document.getElementById('recentUsersTable');
+        tbody.innerHTML = users.slice(0, 5).map(user => `
+          <tr>
+            <td>${user.id}</td>
+            <td>${user.name}</td>
+            <td>${user.email}</td>
+            <td><span class="badge badge-${user.role.toLowerCase()}">${user.role === 'DOCTOR' ? 'Médico' : 'Paciente'}</span></td>
+            <td><span class="badge badge-${user.hasFitbitConnected ? 'connected' : 'disconnected'}">${user.hasFitbitConnected ? 'Conectado' : 'Não'}</span></td>
+          </tr>
+        `).join('');
+      } catch (error) { showAlert('Erro: ' + error.message, 'error'); }
+    }
+
+    // ===== Users Page =====
+    async function loadUsersPage() { await loadUsers(); await loadDoctorsSelect(); }
+
+    async function fetchUsers() {
+      const response = await fetch(`${API_BASE}/users`);
+      if (!response.ok) throw new Error('Erro ao buscar usuários');
+      allUsers = await response.json();
+      return allUsers;
+    }
+
+    async function loadUsers() {
+      try {
+        const users = await fetchUsers();
+        const tbody = document.getElementById('usersTable');
+        if (users.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum usuário</td></tr>'; return; }
+        tbody.innerHTML = users.map(user => `
+          <tr>
+            <td>${user.id}</td>
+            <td>${user.name}</td>
+            <td>${user.email}</td>
+            <td>${user.phone}</td>
+            <td><span class="badge badge-${user.role.toLowerCase()}">${user.role === 'DOCTOR' ? 'Médico' : 'Paciente'}</span></td>
+            <td>${user.doctor ? user.doctor.name : '-'}</td>
+            <td><span class="badge badge-${user.hasFitbitConnected ? 'connected' : 'disconnected'}">${user.hasFitbitConnected ? 'Sim' : 'Não'}</span></td>
+            <td class="actions">
+              <button class="btn btn-success btn-sm" onclick="connectFitbit(${user.id})">Fitbit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})">Excluir</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (error) { showAlert('Erro: ' + error.message, 'error'); }
+    }
+
+    async function loadDoctorsSelect() {
+      try {
+        const response = await fetch(`${API_BASE}/users/doctors`);
+        const doctors = await response.json();
+
+        document.getElementById('doctorId').innerHTML = '<option value="">Sem médico</option>' + doctors.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+        document.getElementById('selectDoctor').innerHTML = '<option value="">Selecione...</option>' + doctors.map(d => `<option value="${d.id}">${d.name} (${d.patients?.length || 0} pac.)</option>`).join('');
+        document.getElementById('fullDataDoctor').innerHTML = '<option value="">Selecione...</option>' + doctors.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+
+        const patients = allUsers.filter(u => u.role === 'PATIENT' && u.hasFitbitConnected);
+        document.getElementById('fullDataPatient').innerHTML = '<option value="">Selecione...</option>' + patients.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      } catch (error) { console.error(error); }
+    }
+
+    function toggleDoctorSelect() {
+      document.getElementById('doctorSelectGroup').style.display = document.getElementById('role').value === 'PATIENT' ? 'block' : 'none';
+    }
+
+    async function createUser(event) {
+      event.preventDefault();
+      const data = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        phone: document.getElementById('phone').value,
+        password: document.getElementById('password').value,
+        role: document.getElementById('role').value,
+      };
+      const doctorId = document.getElementById('doctorId').value;
+      if (doctorId && data.role === 'PATIENT') data.doctorId = parseInt(doctorId);
+
+      try {
+        const response = await fetch(`${API_BASE}/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.message); }
+        showAlert('Usuário criado!', 'success');
+        document.getElementById('createUserForm').reset();
+        toggleDoctorSelect();
+        await loadUsers();
+        await loadDoctorsSelect();
+      } catch (error) { showAlert('Erro: ' + error.message, 'error'); }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Excluir usuário?')) return;
+      try {
+        const response = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.message); }
+        showAlert('Excluído!', 'success');
+        await loadUsers();
+        await loadDoctorsSelect();
+      } catch (error) { showAlert('Erro: ' + error.message, 'error'); }
+    }
+
+    function connectFitbit(userId) { window.location.href = `${API_BASE}/fitbit/auth?userId=${userId}`; }
+
+    // ===== Patients Data Page (Resumido) =====
+    async function loadPatientsDataPage() {
+      await loadDoctorsSelect();
+      document.getElementById('dataDate').value = new Date().toISOString().split('T')[0];
+    }
+
+    async function loadDoctorPatients() {
+      const doctorId = document.getElementById('selectDoctor').value;
+      document.getElementById('patientsDataContainer').style.display = doctorId ? 'block' : 'none';
+      if (doctorId) await loadPatientsData();
+    }
+
+    async function loadPatientsData() {
+      const doctorId = document.getElementById('selectDoctor').value;
+      const date = document.getElementById('dataDate').value;
+      if (!doctorId) return;
+
+      const container = document.getElementById('patientsDataContent');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carregando...</p></div>';
+
+      try {
+        let endpoint;
+        if (currentDataTab === 'profile') {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/profile`;
+        } else if (currentDataTab === 'week') {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/week?weekStart=${date}`;
+        } else {
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/${currentDataTab}${date ? '?date=' + date : ''}`;
+        }
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
+
+        if (data.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum paciente com Fitbit</h3></div>'; return; }
+
+        // Busca devices de todos os pacientes em paralelo para mostrar lastSync
+        if (currentDataTab !== 'profile') {
+          await Promise.all(
+            data.filter(p => p.success).map(p => fetchUserDevices(p.userId))
+          );
+        }
+
+        if (currentDataTab === 'activity') renderActivityData(data, container);
+        else if (currentDataTab === 'sleep') renderSleepData(data, container);
+        else if (currentDataTab === 'week') renderWeekData(data, container);
+        else if (currentDataTab === 'profile') renderProfileData(data, container);
+      } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
+    }
+
+    function renderActivityData(patientsData, container) {
+      container.innerHTML = patientsData.map(patient => {
+        const user = allUsers.find(u => u.id === patient.userId);
+        const name = user?.name || `Paciente ${patient.userId}`;
+        if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+        const s = patient.data.summary || {};
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
+          <div class="data-item"><div class="value">${s.steps?.toLocaleString() || 0}</div><div class="label">Passos</div></div>
+          <div class="data-item"><div class="value">${s.caloriesOut?.toLocaleString() || 0}</div><div class="label">Calorias</div></div>
+          <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
+          <div class="data-item"><div class="value">${s.floors || 0}</div><div class="label">Andares</div></div>
+          <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min Ativos</div></div>
+        </div></div></div>`;
+      }).join('');
+    }
+
+    function renderSleepData(patientsData, container) {
+      container.innerHTML = patientsData.map(patient => {
+        const user = allUsers.find(u => u.id === patient.userId);
+        const name = user?.name || `Paciente ${patient.userId}`;
+        if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+        const s = patient.data.summary || {};
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
+          <div class="data-item"><div class="value">${Math.floor((s.totalMinutesAsleep||0)/60)}h${(s.totalMinutesAsleep||0)%60}m</div><div class="label">Dormindo</div></div>
+          <div class="data-item"><div class="value">${Math.floor((s.totalTimeInBed||0)/60)}h${(s.totalTimeInBed||0)%60}m</div><div class="label">Na Cama</div></div>
+          <div class="data-item"><div class="value">${patient.data.sleep?.[0]?.efficiency || '-'}%</div><div class="label">Eficiência</div></div>
+        </div></div></div>`;
+      }).join('');
+    }
+
+    function renderWeekData(patientsData, container) {
+      container.innerHTML = patientsData.map(patient => {
+        const user = allUsers.find(u => u.id === patient.userId);
+        const name = user?.name || `Paciente ${patient.userId}`;
+        if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+        const week = patient.data || [];
+        const totalSteps = week.reduce((sum, d) => sum + (d.activity?.summary?.steps || 0), 0);
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">7 dias</span></div><div class="patient-body">
+          <div class="data-grid"><div class="data-item"><div class="value">${totalSteps.toLocaleString()}</div><div class="label">Total Passos</div></div><div class="data-item"><div class="value">${Math.round(totalSteps/7).toLocaleString()}</div><div class="label">Média/Dia</div></div></div>
+          <table style="margin-top:16px;font-size:13px"><thead><tr><th>Data</th><th>Passos</th><th>Calorias</th></tr></thead><tbody>
+          ${week.map(d => `<tr><td>${formatDate(d.date)}</td><td>${d.activity?.summary?.steps?.toLocaleString()||'-'}</td><td>${d.activity?.summary?.caloriesOut?.toLocaleString()||'-'}</td></tr>`).join('')}
+          </tbody></table></div></div>`;
+      }).join('');
+    }
+
+    function renderProfileData(patientsData, container) {
+      container.innerHTML = patientsData.map(patient => {
+        const name = patient.userName || `Paciente ${patient.userId}`;
+        if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+        const p = patient.data?.user || {};
+        const age = p.dateOfBirth ? Math.floor((new Date() - new Date(p.dateOfBirth)) / 31557600000) : '-';
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3><div style="font-size:12px;opacity:0.85;margin-top:2px">${p.fullName || ''}</div></div><span class="badge badge-connected">Perfil</span></div><div class="patient-body"><div class="data-grid">
+          <div class="data-item highlight"><div class="value">${age}</div><div class="label">Idade</div></div>
+          <div class="data-item"><div class="value">${p.gender || '-'}</div><div class="label">Gênero</div></div>
+          <div class="data-item"><div class="value">${p.height ? p.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
+          <div class="data-item"><div class="value">${p.weight ? p.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthWalking ? (p.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthRunning ? (p.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
+          <strong>Data de Nasc.:</strong> ${p.dateOfBirth || '-'} &nbsp;|&nbsp;
+          <strong>Timezone:</strong> ${p.timezone || '-'} &nbsp;|&nbsp;
+          <strong>País:</strong> ${p.country || '-'}
+        </div>
+        </div></div>`;
+      }).join('');
+    }
+
+    function switchDataTab(tab, el) {
+      currentDataTab = tab;
+      document.querySelectorAll('#page-patients-data .tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      loadPatientsData();
+    }
+
+    // ===== Full Data Page =====
+    async function loadFullDataPage() {
+      await fetchUsers();
+      await loadDoctorsSelect();
+      document.getElementById('fullDataDate').value = new Date().toISOString().split('T')[0];
+    }
+
+    function toggleFullDataMode() {
+      const mode = document.getElementById('fullDataMode').value;
+      document.getElementById('fullDataDoctorGroup').style.display = mode === 'doctor' ? 'block' : 'none';
+      document.getElementById('fullDataPatientGroup').style.display = mode === 'single' ? 'block' : 'none';
+    }
+
+    async function loadFullData() {
+      const mode = document.getElementById('fullDataMode').value;
+      const date = document.getElementById('fullDataDate').value;
+      const container = document.getElementById('fullDataContent');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carregando todos os dados...</p></div>';
+
+      try {
+        let data;
+        if (mode === 'single') {
+          const patientId = document.getElementById('fullDataPatient').value;
+          if (!patientId) { showAlert('Selecione um paciente', 'error'); container.innerHTML = ''; return; }
+          const response = await fetch(`${API_BASE}/users/${patientId}/fitbit/all${date ? '?date=' + date : ''}`);
+          data = [await response.json()];
+        } else {
+          const doctorId = document.getElementById('fullDataDoctor').value;
+          if (!doctorId) { showAlert('Selecione um médico', 'error'); container.innerHTML = ''; return; }
+          const response = await fetch(`${API_BASE}/users/${doctorId}/patients/fitbit/all${date ? '?date=' + date : ''}`);
+          data = await response.json();
+        }
+
+        if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum dado encontrado</h3></div>'; return; }
+
+        // Busca devices, sync history e profile em paralelo para cada paciente
+        const syncData = {};
+        await Promise.all(
+          data.filter(p => p.userId).map(async (p) => {
+            const [devices, history, profile] = await Promise.all([
+              fetchUserDevices(p.userId),
+              fetchSyncHistory(p.userId),
+              fetchUserProfile(p.userId),
+            ]);
+            syncData[p.userId] = { devices, history, profile };
+          })
+        );
+
+        container.innerHTML = data.map(patient => renderFullPatientData(patient, syncData[patient.userId])).join('');
+      } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
+    }
+
+    function renderFullPatientData(patient, syncInfo) {
+      if (!patient.success && patient.error) {
+        return `<div class="patient-data-card"><div class="patient-header"><h3>${patient.userName || 'Paciente ' + patient.userId}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
+      }
+
+      const activity = patient.activity || {};
+      const sleep = patient.sleep || {};
+      const heartRate = patient.heartRate || {};
+      const summary = activity.summary || {};
+      const goals = activity.goals || {};
+      const sleepData = sleep.sleep?.[0] || {};
+      const sleepSummary = sleep.summary || {};
+      const hrData = heartRate['activities-heart']?.[0]?.value || {};
+      const hrZones = hrData.heartRateZones || [];
+      const sleepLevels = sleepData.levels?.summary || {};
+
+      // Info do dispositivo, último sync e perfil
+      const devices = syncInfo?.devices || [];
+      const mainDevice = devices[0];
+      const lastSync = mainDevice?.lastSyncTime;
+      const profile = syncInfo?.profile?.user || {};
+
+      return `
+        <div class="patient-data-card">
+          <div class="patient-header">
+            <div>
+              <h3>${patient.userName || 'Paciente ' + patient.userId}</h3>
+              ${lastSync ? `<div style="font-size:11px;opacity:0.85;margin-top:2px">Último sync: ${formatSyncTime(lastSync)}</div>` : ''}
+            </div>
+            <div style="text-align:right">
+              <span class="badge badge-connected">${patient.date}</span>
+              ${mainDevice ? `<div style="font-size:11px;color:white;opacity:0.8;margin-top:4px">${mainDevice.deviceVersion || ''} - Bateria: ${mainDevice.battery || '?'}</div>` : ''}
+            </div>
+          </div>
+          <div class="patient-body">
+
+            <!-- PERFIL FITBIT -->
+            ${profile.fullName ? `
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                Perfil Fitbit
+              </div>
+              <div class="data-grid">
+                <div class="data-item"><div class="value" style="font-size:14px">${profile.fullName}</div><div class="label">Nome Fitbit</div></div>
+                <div class="data-item"><div class="value">${profile.dateOfBirth ? Math.floor((new Date() - new Date(profile.dateOfBirth)) / 31557600000) : '-'}</div><div class="label">Idade</div></div>
+                <div class="data-item"><div class="value">${profile.gender || '-'}</div><div class="label">Gênero</div></div>
+                <div class="data-item"><div class="value">${profile.height ? profile.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
+                <div class="data-item"><div class="value">${profile.weight ? profile.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthWalking ? (profile.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthRunning ? (profile.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+              </div>
+              <div style="margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
+                <strong>Data de Nasc.:</strong> ${profile.dateOfBirth || '-'} &nbsp;|&nbsp;
+                <strong>Timezone:</strong> ${profile.timezone || '-'} &nbsp;|&nbsp;
+                <strong>País:</strong> ${profile.country || '-'}
+              </div>
+            ` : ''}
+
+            <!-- ATIVIDADE COMPLETA -->
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>
+              Atividade Completa
+            </div>
+            <div class="data-grid">
+              <div class="data-item highlight"><div class="value">${summary.steps?.toLocaleString() || 0}</div><div class="label">Passos</div></div>
+              <div class="data-item"><div class="value">${summary.caloriesOut?.toLocaleString() || 0}</div><div class="label">Calorias Total</div></div>
+              <div class="data-item"><div class="value">${summary.activityCalories?.toLocaleString() || 0}</div><div class="label">Cal. Atividade</div></div>
+              <div class="data-item"><div class="value">${summary.caloriesBMR?.toLocaleString() || 0}</div><div class="label">Cal. BMR</div></div>
+              <div class="data-item"><div class="value">${(summary.distances?.[0]?.distance || 0).toFixed(2)} km</div><div class="label">Distância</div></div>
+              <div class="data-item"><div class="value">${summary.floors || 0}</div><div class="label">Andares</div></div>
+              <div class="data-item"><div class="value">${summary.elevation?.toFixed(1) || 0} m</div><div class="label">Elevação</div></div>
+              <div class="data-item"><div class="value">${summary.sedentaryMinutes || 0}</div><div class="label">Min. Sedentário</div></div>
+              <div class="data-item"><div class="value">${summary.lightlyActiveMinutes || 0}</div><div class="label">Min. Leve</div></div>
+              <div class="data-item"><div class="value">${summary.fairlyActiveMinutes || 0}</div><div class="label">Min. Moderado</div></div>
+              <div class="data-item"><div class="value">${summary.veryActiveMinutes || 0}</div><div class="label">Min. Intenso</div></div>
+              <div class="data-item"><div class="value">${summary.marginalCalories || 0}</div><div class="label">Cal. Marginais</div></div>
+            </div>
+
+            <!-- METAS -->
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+              Metas do Dia
+            </div>
+            <div class="data-grid">
+              <div class="data-item"><div class="value">${goals.steps?.toLocaleString() || '-'}</div><div class="label">Meta Passos</div></div>
+              <div class="data-item"><div class="value">${goals.caloriesOut?.toLocaleString() || '-'}</div><div class="label">Meta Calorias</div></div>
+              <div class="data-item"><div class="value">${goals.distance || '-'} km</div><div class="label">Meta Distância</div></div>
+              <div class="data-item"><div class="value">${goals.floors || '-'}</div><div class="label">Meta Andares</div></div>
+              <div class="data-item"><div class="value">${goals.activeMinutes || '-'}</div><div class="label">Meta Min. Ativos</div></div>
+            </div>
+
+            <!-- FREQUÊNCIA CARDÍACA -->
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              Frequência Cardíaca
+            </div>
+            <div class="data-grid" style="margin-bottom:16px">
+              <div class="data-item highlight"><div class="value">${hrData.restingHeartRate || '-'}</div><div class="label">FC Repouso (bpm)</div></div>
+            </div>
+            ${hrZones.length > 0 ? `
+              <div style="margin-top:12px">
+                ${hrZones.map(zone => `
+                  <div class="hr-zone">
+                    <span class="hr-zone-name">${zone.name}</span>
+                    <div class="hr-zone-bar" style="background: ${getZoneColor(zone.name)}; width: ${Math.min(zone.minutes, 200)}px"></div>
+                    <span class="hr-zone-value">${zone.minutes} min</span>
+                    <span class="hr-zone-value">${zone.caloriesOut?.toFixed(0) || 0} cal</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<p style="color:#666;font-size:13px">Sem dados de zonas cardíacas</p>'}
+
+            <!-- SONO COMPLETO -->
+            <div class="section-title">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 2c-1.05 0-2.05.16-3 .46 4.06 1.27 7 5.06 7 9.54 0 4.48-2.94 8.27-7 9.54.95.3 1.95.46 3 .46 5.52 0 10-4.48 10-10S14.52 2 9 2z"/></svg>
+              Sono Completo
+            </div>
+            <div class="data-grid">
+              <div class="data-item highlight"><div class="value">${Math.floor((sleepSummary.totalMinutesAsleep||0)/60)}h ${(sleepSummary.totalMinutesAsleep||0)%60}m</div><div class="label">Tempo Dormindo</div></div>
+              <div class="data-item"><div class="value">${Math.floor((sleepSummary.totalTimeInBed||0)/60)}h ${(sleepSummary.totalTimeInBed||0)%60}m</div><div class="label">Tempo na Cama</div></div>
+              <div class="data-item"><div class="value">${sleepData.efficiency || '-'}%</div><div class="label">Eficiência</div></div>
+              <div class="data-item"><div class="value">${sleepSummary.totalSleepRecords || 0}</div><div class="label">Registros</div></div>
+              <div class="data-item"><div class="value">${sleepData.minutesAwake || '-'}</div><div class="label">Min. Acordado</div></div>
+              <div class="data-item"><div class="value">${sleepData.minutesAfterWakeup || '-'}</div><div class="label">Min. Após Acordar</div></div>
+            </div>
+
+            ${Object.keys(sleepLevels).length > 0 ? `
+              <h3 style="margin:20px 0 12px;font-size:14px;color:#555">Estágios do Sono</h3>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+                ${sleepLevels.deep ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#3f51b5"></div><span class="sleep-stage-name">Sono Profundo</span><span class="sleep-stage-value">${sleepLevels.deep.minutes} min</span></div>` : ''}
+                ${sleepLevels.light ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#2196f3"></div><span class="sleep-stage-name">Sono Leve</span><span class="sleep-stage-value">${sleepLevels.light.minutes} min</span></div>` : ''}
+                ${sleepLevels.rem ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#9c27b0"></div><span class="sleep-stage-name">Sono REM</span><span class="sleep-stage-value">${sleepLevels.rem.minutes} min</span></div>` : ''}
+                ${sleepLevels.wake ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#ff9800"></div><span class="sleep-stage-name">Acordado</span><span class="sleep-stage-value">${sleepLevels.wake.minutes} min</span></div>` : ''}
+              </div>
+            ` : ''}
+
+            ${sleepData.startTime ? `
+              <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
+                <strong>Período:</strong> ${formatDateTime(sleepData.startTime)} → ${formatDateTime(sleepData.endTime)}
+              </div>
+            ` : ''}
+
+            <!-- DISPOSITIVOS -->
+            ${devices.length > 0 ? `
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14z"/></svg>
+                Dispositivos
+              </div>
+              <div class="data-grid">
+                ${devices.map(d => `
+                  <div class="data-item">
+                    <div class="value" style="font-size:14px">${d.deviceVersion || 'Desconhecido'}</div>
+                    <div class="label">${d.type || '-'}</div>
+                    <div style="font-size:11px;color:#666;margin-top:4px">Bateria: ${d.battery || '?'}${d.batteryLevel ? ' (' + d.batteryLevel + '%)' : ''}</div>
+                    <div style="font-size:11px;color:#667eea;margin-top:2px">Sync: ${formatSyncTime(d.lastSyncTime)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- HISTÓRICO DE SYNC -->
+            ${renderSyncHistorySection(syncInfo?.history || [])}
+
+          </div>
+        </div>
+      `;
+    }
+
+    function getZoneColor(zoneName) {
+      const colors = { 'Out of Range': '#90a4ae', 'Fat Burn': '#ffb74d', 'Cardio': '#ff7043', 'Peak': '#e53935' };
+      return colors[zoneName] || '#667eea';
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    }
+
+    function formatDateTime(dateStr) {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function fetchUserDevices(userId) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/devices`);
+        if (!response.ok) return null;
+        const devices = await response.json();
+        if (devices && devices.length > 0) {
+          // Pega o lastSyncTime mais recente entre todos os dispositivos
+          let latest = null;
+          for (const d of devices) {
+            if (d.lastSyncTime) {
+              const t = new Date(d.lastSyncTime);
+              if (!latest || t > latest) latest = t;
+            }
+          }
+          deviceSyncCache[userId] = { lastSyncTime: latest, devices };
+        }
+        return devices;
+      } catch (e) { return null; }
+    }
+
+    async function fetchUserProfile(userId) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/profile`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) { return null; }
+    }
+
+    async function fetchSyncHistory(userId, limit = 20) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/sync-history?limit=${limit}`);
+        if (!response.ok) return [];
+        return await response.json();
+      } catch (e) { return []; }
+    }
+
+    function formatSyncTime(dateStr) {
+      if (!dateStr) return 'Nunca';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      let relative;
+      if (diffMin < 1) relative = 'agora';
+      else if (diffMin < 60) relative = `${diffMin} min atrás`;
+      else if (diffHours < 24) relative = `${diffHours}h atrás`;
+      else relative = `${diffDays}d atrás`;
+
+      const formatted = date.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+
+      return `${formatted} (${relative})`;
+    }
+
+    function renderSyncBadge(userId) {
+      const cache = deviceSyncCache[userId];
+      if (!cache || !cache.lastSyncTime) return '';
+      return `<div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:4px">Último sync: ${formatSyncTime(cache.lastSyncTime)}</div>`;
+    }
+
+    function renderSyncHistorySection(syncHistory) {
+      if (!syncHistory || syncHistory.length === 0) {
+        return `
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+            Histórico de Sincronização
+          </div>
+          <p style="color:#666;font-size:13px">Nenhum registro de sync encontrado. Carregue os dispositivos para começar a rastrear.</p>
+        `;
+      }
+
+      return `
+        <div class="section-title">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+          Histórico de Sincronização (${syncHistory.length} registros)
+        </div>
+        <div style="max-height:300px;overflow-y:auto">
+          <table style="font-size:13px">
+            <thead><tr><th>Data/Hora do Sync</th><th>Dispositivo</th><th>Tipo</th><th>Bateria</th></tr></thead>
+            <tbody>
+              ${syncHistory.map(s => `
+                <tr>
+                  <td>${new Date(s.syncTime).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' })}</td>
+                  <td>${s.deviceName || '-'}</td>
+                  <td>${s.deviceType || '-'}</td>
+                  <td>${s.battery || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function showAlert(message, type) {
+      const alert = document.getElementById('alert');
+      alert.textContent = message;
+      alert.className = `alert alert-${type}`;
+      alert.style.display = 'block';
+      setTimeout(() => { alert.style.display = 'none'; }, 5000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { loadDashboard(); });
+  </script>
+</body>
+</html>

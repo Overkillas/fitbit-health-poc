@@ -1,10 +1,27 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Res, Sse, Headers } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  InternalServerErrorException,
+  Logger,
+  Param,
+  Post,
+  Query,
+  Res,
+  Sse,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { FitbitService } from './fitbit.service';
+import { FitbitWebhookNotification, PatientPollingData } from './fitbit.types';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { Subject, Observable, interval } from 'rxjs';
-import { switchMap, map } from 'rxjs/operators'; // Importe separado
+import { Subject, Observable, interval, Subscription } from 'rxjs';
+import { switchMap, map } from 'rxjs/operators';
 import { SessionService } from './session.service';
+import { UsersService } from '../users/users.service';
 
 interface MessageEvent {
   data: string | object;
@@ -13,128 +30,168 @@ interface MessageEvent {
   retry?: number;
 }
 
-interface PatientData {
-  patientId: string;
-  timestamp: string;
-  heartRate: any;
-  steps: any;
-  patientName?: string;
-}
-
+type PatientData = PatientPollingData;
 
 @Controller('fitbit')
 export class FitbitController {
-  // Map para gerenciar streams de cada sessão
+  private readonly logger = new Logger(FitbitController.name);
   private sessionStreams: Map<string, Subject<MessageEvent>> = new Map();
+  private sessionPolling: Map<string, Subscription> = new Map();
 
   constructor(
     private readonly fitbitService: FitbitService,
     private readonly sessionService: SessionService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly usersService: UsersService,
   ) {}
 
-  // Inicia o fluxo OAuth2
+  private extractBearerToken(authorization?: string): string {
+    if (!authorization) {
+      throw new UnauthorizedException(
+        'Authorization header is required (Bearer <token>)',
+      );
+    }
+    const [scheme, token] = authorization.split(' ');
+    if (scheme !== 'Bearer' || !token) {
+      throw new UnauthorizedException(
+        'Invalid authorization format. Use: Bearer <token>',
+      );
+    }
+    return token;
+  }
+
+  // Initiates the OAuth2 flow
   @Get('auth')
-  async initiateAuth(@Res() res: Response) {
-    const authUrl = this.fitbitService.getAuthorizationUrl();
+  initiateAuth(@Query('userId') userId: string, @Res() res: Response) {
+    const authUrl = this.fitbitService.getAuthorizationUrl(userId);
     res.redirect(authUrl);
   }
 
-  // Callback após autorização
+  // OAuth2 callback after authorization
   @Get('callback')
-  async handleCallback(@Query('code') code: string, @Res() res: Response) {
+  async handleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
     if (!code) {
-      return res.status(400).json({ error: 'Código de autorização não fornecido' });
+      return res
+        .status(400)
+        .json({ error: 'Authorization code not provided' });
     }
 
     try {
       const tokens = await this.fitbitService.exchangeCodeForTokens(code);
-      
-      // Retorna os tokens (depois você salvará no banco)
+
+      // If state (userId) is present, save tokens to the database
+      if (state) {
+        const userId = parseInt(state, 10);
+        if (!isNaN(userId)) {
+          const expiresAt = new Date();
+          expiresAt.setSeconds(expiresAt.getSeconds() + tokens.expires_in);
+
+          await this.usersService.updateFitbitTokens(userId, {
+            fitbitUserId: tokens.user_id,
+            fitbitAccessToken: tokens.access_token,
+            fitbitRefreshToken: tokens.refresh_token,
+            fitbitTokenExpiresAt: expiresAt,
+          });
+
+          // Redirect to success page
+          return res.redirect(`/fitbit/connect?success=true&userId=${userId}`);
+        }
+      }
+
+      // No userId in state — return JSON response
       res.json({
-        message: 'Autenticação bem-sucedida!',
+        message: 'Authentication successful',
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         userId: tokens.user_id,
         expiresIn: tokens.expires_in,
       });
     } catch (error) {
-      res.status(500).json({ 
-        error: 'Erro na autenticação',
-        details: error.message 
+      const message = error instanceof Error ? error.message : String(error);
+      if (state) {
+        return res.redirect(
+          `/fitbit/connect?success=false&error=${encodeURIComponent(message)}`,
+        );
+      }
+      res.status(500).json({
+        error: 'Authentication failed',
+        details: message,
       });
     }
   }
 
-  // Busca dados de atividade
+  // Serves the Fitbit connection page
+  @Get('connect')
+  connectPage(@Res() res: Response) {
+    res.sendFile('fitbit-connect.html', { root: 'public' });
+  }
+
+  // Fetches activity data
   @Get('activity')
   async getActivity(
-    @Query('accessToken') accessToken: string,
+    @Headers('authorization') authorization: string,
     @Query('date') date?: string,
   ) {
-    if (!accessToken) {
-      return { error: 'Access token é obrigatório' };
-    }
+    const accessToken = this.extractBearerToken(authorization);
 
     try {
-      const data = await this.fitbitService.getUserActivityData(accessToken, date);
-      return data;
+      return await this.fitbitService.getUserActivityData(accessToken, date);
     } catch (error) {
-      return { 
-        error: 'Erro ao buscar dados de atividade',
-        details: error.message 
-      };
+      throw new InternalServerErrorException(
+        'Failed to fetch activity data',
+        { cause: error },
+      );
     }
   }
 
-  // Busca dados de sono
+  // Fetches sleep data
   @Get('sleep')
   async getSleep(
-    @Query('accessToken') accessToken: string,
+    @Headers('authorization') authorization: string,
     @Query('date') date?: string,
   ) {
-    if (!accessToken) {
-      return { error: 'Access token é obrigatório' };
-    }
+    const accessToken = this.extractBearerToken(authorization);
 
     try {
-      const data = await this.fitbitService.getUserSleepData(accessToken, date);
-      return data;
+      return await this.fitbitService.getUserSleepData(accessToken, date);
     } catch (error) {
-      return { 
-        error: 'Erro ao buscar dados de sono',
-        details: error.message 
-      };
+      throw new InternalServerErrorException('Failed to fetch sleep data', {
+        cause: error,
+      });
     }
   }
 
-  // Renova o access token
-  @Get('refresh')
-  async refreshToken(@Query('refreshToken') refreshToken: string) {
+  // Refreshes the access token
+  @Post('refresh')
+  async refreshToken(@Body('refreshToken') refreshToken: string) {
     if (!refreshToken) {
-      return { error: 'Refresh token é obrigatório' };
+      throw new BadRequestException('refreshToken is required in request body');
     }
 
     try {
-      const newTokens = await this.fitbitService.refreshAccessToken(refreshToken);
+      const newTokens =
+        await this.fitbitService.refreshAccessToken(refreshToken);
       return {
-        message: 'Token renovado com sucesso',
+        message: 'Token refreshed successfully',
         accessToken: newTokens.access_token,
         refreshToken: newTokens.refresh_token,
         expiresIn: newTokens.expires_in,
       };
     } catch (error) {
-      return { 
-        error: 'Erro ao renovar token',
-        details: error.message 
-      };
+      throw new InternalServerErrorException('Failed to refresh token', {
+        cause: error,
+      });
     }
   }
 
-  // Busca intraday (máximo 24h)
+  // Fetches intraday data (max 24h)
   @Get('intraday')
   async getIntraday(
-    @Query('accessToken') accessToken: string,
+    @Headers('authorization') authorization: string,
     @Query('resource') resource: string,
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
@@ -142,12 +199,16 @@ export class FitbitController {
     @Query('startTime') startTime?: string,
     @Query('endTime') endTime?: string,
   ) {
-    if (!accessToken || !resource || !startDate || !endDate) {
-      return { error: 'Parâmetros obrigatórios: accessToken, resource, startDate, endDate' };
+    const accessToken = this.extractBearerToken(authorization);
+
+    if (!resource || !startDate || !endDate) {
+      throw new BadRequestException(
+        'Required parameters: resource, startDate, endDate',
+      );
     }
 
     try {
-      const data = await this.fitbitService.getActivityIntradayByDateRange(
+      return await this.fitbitService.getActivityIntradayByDateRange(
         accessToken,
         resource,
         startDate,
@@ -156,116 +217,118 @@ export class FitbitController {
         startTime,
         endTime,
       );
-      return data;
     } catch (error) {
-      return { 
-        error: 'Erro ao buscar intraday',
-        details: error.message 
-      };
+      throw new InternalServerErrorException('Failed to fetch intraday data', {
+        cause: error,
+      });
     }
   }
 
-  // Busca time series por intervalo
+  // Fetches time series by date range
   @Get('time-series')
   async getTimeSeries(
-    @Query('accessToken') accessToken: string,
+    @Headers('authorization') authorization: string,
     @Query('resource') resource: string,
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    if (!accessToken || !resource || !startDate || !endDate) {
-      return { error: 'Todos os parâmetros são obrigatórios: accessToken, resource, startDate, endDate' };
+    const accessToken = this.extractBearerToken(authorization);
+
+    if (!resource || !startDate || !endDate) {
+      throw new BadRequestException(
+        'Required parameters: resource, startDate, endDate',
+      );
     }
 
     try {
-      const data = await this.fitbitService.getActivityTimeSeriesByDateRange(
+      return await this.fitbitService.getActivityTimeSeriesByDateRange(
         accessToken,
         resource,
         startDate,
         endDate,
       );
-      return data;
     } catch (error) {
-      return { 
-        error: 'Erro ao buscar time series',
-        details: error.message 
-      };
+      throw new InternalServerErrorException('Failed to fetch time series', {
+        cause: error,
+      });
     }
   }
 
-
   @Get('heart-rate-intraday')
-async getHeartRateIntraday(
-  @Query('accessToken') accessToken: string,
-  @Query('date') date: string,
-  @Query('detailLevel') detailLevel: '1sec' | '1min' = '1min',
-  @Query('startTime') startTime?: string,
-  @Query('endTime') endTime?: string,
-) {
-  if (!accessToken || !date) {
-    return { error: 'Parâmetros obrigatórios: accessToken, date' };
-  }
+  async getHeartRateIntraday(
+    @Headers('authorization') authorization: string,
+    @Query('date') date: string,
+    @Query('detailLevel') detailLevel: '1sec' | '1min' = '1min',
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
+  ) {
+    const accessToken = this.extractBearerToken(authorization);
 
-  try {
-    const data = await this.fitbitService.getHeartRateIntraday(
-      accessToken,
-      date,
-      detailLevel,
-      startTime,
-      endTime,
-    );
-    return data;
-  } catch (error) {
-    return { 
-      error: 'Erro ao buscar heart rate intraday',
-      details: error.message,
-      fitbitError: error.response?.data 
-    };
+    if (!date) {
+      throw new BadRequestException('Required parameter: date');
+    }
+
+    try {
+      return await this.fitbitService.getHeartRateIntraday(
+        accessToken,
+        date,
+        detailLevel,
+        startTime,
+        endTime,
+      );
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to fetch heart rate intraday',
+        { cause: error },
+      );
+    }
   }
-}
 
   // ----------------------------------
   // --------- WEBHOOK ----------------
   // ----------------------------------
 
+  // TODO: verify webhook signature (X-Fitbit-Signature header) using HMAC-SHA1
+  // See: https://dev.fitbit.com/build/reference/web-api/developer-guide/using-subscriptions/#Verifying-a-Webhook-Notification
   @Post('webhook')
-  async handleWebhook(
-    @Body() body: any,
-    @Headers() headers: Record<string, string>,
-  ) {
-    console.log('Webhook recebido do Fitbit:', body);
-    
-    // body é um array de notificações
-    // Exemplo: [{ collectionType: 'activities', ownerId: '123ABC', ownerType: 'user', subscriptionId: 'patient-123' }]
-    
+  handleWebhook(@Body() body: FitbitWebhookNotification[]) {
+    this.logger.log('Webhook received from Fitbit:', body);
+
     for (const notification of body) {
-      // Emite evento interno para processar atualização
+      // Emit internal event to process the update
       this.eventEmitter.emit('patient.data.updated', {
         patientId: notification.ownerId,
         type: notification.collectionType,
       });
     }
-    
-    return; // Fitbit espera resposta 204 (No Content)
+
+    return; // Fitbit expects 204 (No Content)
   }
 
-  // Listener para quando webhook notificar atualização
+  // Listener for webhook-triggered data updates
   @OnEvent('patient.data.updated')
-  async handlePatientDataUpdate(payload: { patientId: string; type: string }) {
-    console.log('Dados do paciente atualizados:', payload);
-    // Aqui você pode fazer polling imediato deste paciente específico
-    // ou agendar uma atualização prioritária
+  handlePatientDataUpdate(payload: { patientId: string; type: string }) {
+    this.logger.log('Patient data updated:', payload);
+    // Could trigger immediate polling for this specific patient
+    // or schedule a priority update
   }
 
   // ----------------------------------
-  // --------- SESSÕES ----------------
+  // --------- SESSIONS ---------------
   // ----------------------------------
 
-  // Adiciona um paciente a uma sessão de reabilitação
+  // Adds a patient to a rehabilitation session
   @Post('session/:sessionId/patient')
   async addPatientToSession(
     @Param('sessionId') sessionId: string,
-    @Body() body: { patientId: string; name: string; accessToken: string; refreshToken: string; userId: string },
+    @Body()
+    body: {
+      patientId: string;
+      name: string;
+      accessToken: string;
+      refreshToken: string;
+      userId: string;
+    },
   ) {
     this.sessionService.addPatientToSession(sessionId, {
       id: body.patientId,
@@ -277,12 +340,19 @@ async getHeartRateIntraday(
     });
 
     try {
-      await this.fitbitService.createSubscription(body.accessToken, body.patientId);
+      await this.fitbitService.createSubscription(
+        body.accessToken,
+        body.patientId,
+      );
     } catch (error) {
-      console.error('Erro ao criar subscription:', error);
+      this.logger.error('Failed to create subscription:', error);
     }
 
-    return { message: 'Paciente adicionado à sessão', sessionId, patientId: body.patientId };
+    return {
+      message: 'Patient added to session',
+      sessionId,
+      patientId: body.patientId,
+    };
   }
 
   @Delete('session/:sessionId/patient/:patientId')
@@ -291,27 +361,32 @@ async getHeartRateIntraday(
     @Param('patientId') patientId: string,
   ) {
     const patients = this.sessionService.getSessionPatients(sessionId);
-    const patient = patients.find(p => p.id === patientId);
-    
+    const patient = patients.find((p) => p.id === patientId);
+
     if (patient) {
       try {
-        await this.fitbitService.deleteSubscription(patient.accessToken, patientId);
+        await this.fitbitService.deleteSubscription(
+          patient.accessToken,
+          patientId,
+        );
       } catch (error) {
-        console.error('Erro ao remover subscription:', error);
+        this.logger.error('Failed to delete subscription:', error);
       }
     }
 
     this.sessionService.removePatientFromSession(sessionId, patientId);
-    return { message: 'Paciente removido da sessão' };
+    return { message: 'Patient removed from session' };
   }
 
   // ----------------------------------
-  // --------- SSE (TEMPO REAL) -------
+  // --------- SSE (REAL-TIME) --------
   // ----------------------------------
 
   @Sse('session/:sessionId/live')
-  livePatientData(@Param('sessionId') sessionId: string): Observable<MessageEvent> {
-    console.log(`Médico conectado ao stream da sessão: ${sessionId}`);
+  livePatientData(
+    @Param('sessionId') sessionId: string,
+  ): Observable<MessageEvent> {
+    this.logger.log(`Doctor connected to session stream: ${sessionId}`);
 
     if (!this.sessionStreams.has(sessionId)) {
       this.sessionStreams.set(sessionId, new Subject<MessageEvent>());
@@ -319,53 +394,62 @@ async getHeartRateIntraday(
 
     const sessionSubject = this.sessionStreams.get(sessionId)!;
 
-    // CORREÇÃO 2: Adicione tipagem explícita ao array
-    const pollingInterval = interval(60000).pipe(
-      switchMap(async () => {
-        const patients = this.sessionService.getSessionPatients(sessionId);
-        
-        if (patients.length === 0) {
-          return null;
-        }
+    // Avoid duplicate polling if already active for this session
+    if (!this.sessionPolling.has(sessionId)) {
+      const pollingInterval = interval(60000).pipe(
+        switchMap(async () => {
+          const patients = this.sessionService.getSessionPatients(sessionId);
 
-        // Declare o array com tipo explícito
-        const allData: PatientData[] = []; // CORREÇÃO 2
-        
-        for (let i = 0; i < patients.length; i++) {
-          const patient = patients[i];
-          
-          try {
-            const data = await this.fitbitService.pollPatientRealtimeData(
-              patient.accessToken,
-              patient.id,
-            );
-            
-            allData.push({
-              ...data,
-              patientName: patient.name,
-            });
-            
-            if (i < patients.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          } catch (error) {
-            console.error(`Erro ao buscar dados do paciente ${patient.id}:`, error.message);
+          if (patients.length === 0) {
+            return null;
           }
+
+          const allData: PatientData[] = [];
+
+          for (let i = 0; i < patients.length; i++) {
+            const patient = patients[i];
+
+            try {
+              const data = await this.fitbitService.pollPatientRealtimeData(
+                patient.accessToken,
+                patient.id,
+              );
+
+              allData.push({
+                ...data,
+                patientName: patient.name,
+              });
+
+              if (i < patients.length - 1) {
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+            } catch (error) {
+              this.logger.error(
+                `Failed to fetch data for patient ${patient.id}:`,
+                error instanceof Error ? error.message : error,
+              );
+            }
+          }
+
+          return allData;
+        }),
+        map(
+          (data) =>
+            ({
+              data: JSON.stringify(data),
+              type: 'patient-data',
+            }) as MessageEvent,
+        ),
+      );
+
+      const subscription = pollingInterval.subscribe((event) => {
+        if (event.data !== 'null') {
+          sessionSubject.next(event);
         }
+      });
 
-        return allData;
-      }),
-      map(data => ({
-        data: JSON.stringify(data),
-        type: 'patient-data',
-      } as MessageEvent)),
-    );
-
-    pollingInterval.subscribe(event => {
-      if (event.data !== 'null') {
-        sessionSubject.next(event);
-      }
-    });
+      this.sessionPolling.set(sessionId, subscription);
+    }
 
     return sessionSubject.asObservable();
   }
@@ -373,13 +457,23 @@ async getHeartRateIntraday(
   @Delete('session/:sessionId')
   async endSession(@Param('sessionId') sessionId: string) {
     const patients = this.sessionService.getSessionPatients(sessionId);
-    
+
     for (const patient of patients) {
       try {
-        await this.fitbitService.deleteSubscription(patient.accessToken, patient.id);
+        await this.fitbitService.deleteSubscription(
+          patient.accessToken,
+          patient.id,
+        );
       } catch (error) {
-        console.error('Erro ao remover subscription:', error);
+        this.logger.error('Failed to delete subscription:', error);
       }
+    }
+
+    // Unsubscribe polling to prevent memory leak
+    const polling = this.sessionPolling.get(sessionId);
+    if (polling) {
+      polling.unsubscribe();
+      this.sessionPolling.delete(sessionId);
     }
 
     const stream = this.sessionStreams.get(sessionId);
@@ -389,27 +483,28 @@ async getHeartRateIntraday(
     }
 
     this.sessionService.endSession(sessionId);
-    return { message: 'Sessão encerrada' };
+    return { message: 'Session ended' };
   }
 
   @Get('week')
   async getWeekData(
-    @Query('accessToken') accessToken: string,
+    @Headers('authorization') authorization: string,
     @Query('weekStart') weekStart: string, // yyyy-MM-dd
   ) {
-    if (!accessToken || !weekStart) {
-      return { error: 'Parâmetros obrigatórios: accessToken, weekStart (yyyy-MM-dd)' };
+    const accessToken = this.extractBearerToken(authorization);
+
+    if (!weekStart) {
+      throw new BadRequestException(
+        'Required parameter: weekStart (yyyy-MM-dd)',
+      );
     }
 
     try {
-      const data = await this.fitbitService.getWeekDataByDay(accessToken, weekStart);
-      return data;
+      return await this.fitbitService.getWeekDataByDay(accessToken, weekStart);
     } catch (error) {
-      return {
-        error: 'Erro ao buscar dados da semana',
-        details: error.message,
-      };
+      throw new InternalServerErrorException('Failed to fetch week data', {
+        cause: error,
+      });
     }
   }
 }
-

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conectar Fitbit</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #444;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #00B0B9 0%, #00CED1 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(0, 176, 185, 0.4);
+    }
+
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .fitbit-logo {
+      width: 24px;
+      height: 24px;
+    }
+
+    .alert {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .alert-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .user-info {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .user-info h3 {
+      color: #333;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .user-info p {
+      color: #666;
+      font-size: 14px;
+      margin: 4px 0;
+    }
+
+    .user-info .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .status-connected {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-disconnected {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .divider {
+      text-align: center;
+      margin: 20px 0;
+      color: #999;
+      font-size: 14px;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      border-color: #667eea;
+      background: #f0f2ff;
+      color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Conectar Fitbit</h1>
+    <p class="subtitle">Vincule sua conta Fitbit a um usuário do sistema</p>
+
+    <div id="alert" class="alert"></div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" onclick="setMode('select')">Selecionar Usuário</button>
+      <button class="mode-btn" onclick="setMode('manual')">Digitar ID</button>
+    </div>
+
+    <div id="selectMode">
+      <div class="form-group">
+        <label for="userSelect">Selecione o Usuário</label>
+        <select id="userSelect" onchange="loadUserInfo()">
+          <option value="">Carregando usuários...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="manualMode" style="display: none;">
+      <div class="form-group">
+        <label for="userId">ID do Usuário</label>
+        <input type="number" id="userId" placeholder="Digite o ID do usuário" min="1">
+      </div>
+    </div>
+
+    <div id="userInfo" class="user-info">
+      <h3 id="userName">-</h3>
+      <p><strong>Email:</strong> <span id="userEmail">-</span></p>
+      <p><strong>Tipo:</strong> <span id="userRole">-</span></p>
+      <p><strong>Fitbit:</strong> <span id="fitbitStatus" class="status status-disconnected">Não conectado</span></p>
+    </div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Carregando...</p>
+    </div>
+
+    <button id="connectBtn" class="btn" onclick="connectFitbit()" disabled>
+      <svg class="fitbit-logo" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.5 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm4-8.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0 5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm-8 0a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0-5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm12 2.75a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-16 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+      </svg>
+      Conectar com Fitbit
+    </button>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let users = [];
+    let currentMode = 'select';
+
+    // Verifica parâmetros da URL (sucesso/erro do OAuth)
+    function checkUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      const success = params.get('success');
+      const error = params.get('error');
+      const userId = params.get('userId');
+
+      if (success === 'true') {
+        showAlert('Fitbit conectado com sucesso!', 'success');
+        // Limpa os parâmetros da URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Recarrega a lista de usuários
+        loadUsers();
+        if (userId) {
+          setTimeout(() => {
+            document.getElementById('userSelect').value = userId;
+            loadUserInfo();
+          }, 500);
+        }
+      } else if (success === 'false') {
+        showAlert(`Erro ao conectar: ${error || 'Erro desconhecido'}`, 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    // Carrega lista de usuários
+    async function loadUsers() {
+      try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/users`);
+        users = await response.json();
+
+        const select = document.getElementById('userSelect');
+        select.innerHTML = '<option value="">Selecione um usuário...</option>';
+
+        users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.id;
+          option.textContent = `${user.name} (${user.role}) ${user.hasFitbitConnected ? '✓' : ''}`;
+          select.appendChild(option);
+        });
+
+        showLoading(false);
+      } catch (error) {
+        showAlert('Erro ao carregar usuários: ' + error.message, 'error');
+        showLoading(false);
+      }
+    }
+
+    // Carrega informações do usuário selecionado
+    function loadUserInfo() {
+      const userId = currentMode === 'select'
+        ? document.getElementById('userSelect').value
+        : document.getElementById('userId').value;
+
+      if (!userId) {
+        document.getElementById('userInfo').style.display = 'none';
+        document.getElementById('connectBtn').disabled = true;
+        return;
+      }
+
+      const user = users.find(u => u.id == userId);
+
+      if (user) {
+        displayUserInfo(user);
+      } else if (currentMode === 'manual') {
+        // Busca usuário pela API se não está na lista
+        fetchUserById(userId);
+      }
+    }
+
+    async function fetchUserById(userId) {
+      try {
+        showLoading(true);
+        const response = await fetch(`${API_BASE}/users/${userId}`);
+
+        if (!response.ok) {
+          throw new Error('Usuário não encontrado');
+        }
+
+        const user = await response.json();
+        displayUserInfo(user);
+        showLoading(false);
+      } catch (error) {
+        showAlert('Erro: ' + error.message, 'error');
+        document.getElementById('userInfo').style.display = 'none';
+        document.getElementById('connectBtn').disabled = true;
+        showLoading(false);
+      }
+    }
+
+    function displayUserInfo(user) {
+      document.getElementById('userName').textContent = user.name;
+      document.getElementById('userEmail').textContent = user.email;
+      document.getElementById('userRole').textContent = user.role === 'DOCTOR' ? 'Médico' : 'Paciente';
+
+      const fitbitStatus = document.getElementById('fitbitStatus');
+      if (user.hasFitbitConnected) {
+        fitbitStatus.textContent = 'Conectado';
+        fitbitStatus.className = 'status status-connected';
+      } else {
+        fitbitStatus.textContent = 'Não conectado';
+        fitbitStatus.className = 'status status-disconnected';
+      }
+
+      document.getElementById('userInfo').style.display = 'block';
+      document.getElementById('connectBtn').disabled = false;
+
+      // Muda texto do botão se já conectado
+      const btn = document.getElementById('connectBtn');
+      if (user.hasFitbitConnected) {
+        btn.innerHTML = `
+          <svg class="fitbit-logo" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.5 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm4-8.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0 5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm-8 0a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0-5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm12 2.75a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-16 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+          </svg>
+          Reconectar Fitbit
+        `;
+      } else {
+        btn.innerHTML = `
+          <svg class="fitbit-logo" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.5 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm4-8.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0 5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm-8 0a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm0-5.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0zm12 2.75a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-16 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+          </svg>
+          Conectar com Fitbit
+        `;
+      }
+    }
+
+    // Conectar com Fitbit
+    function connectFitbit() {
+      const userId = currentMode === 'select'
+        ? document.getElementById('userSelect').value
+        : document.getElementById('userId').value;
+
+      if (!userId) {
+        showAlert('Selecione um usuário primeiro', 'error');
+        return;
+      }
+
+      // Redireciona para o fluxo OAuth com o userId
+      window.location.href = `${API_BASE}/fitbit/auth?userId=${userId}`;
+    }
+
+    // Alterna modo de seleção
+    function setMode(mode) {
+      currentMode = mode;
+
+      document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      document.getElementById('selectMode').style.display = mode === 'select' ? 'block' : 'none';
+      document.getElementById('manualMode').style.display = mode === 'manual' ? 'block' : 'none';
+
+      document.getElementById('userInfo').style.display = 'none';
+      document.getElementById('connectBtn').disabled = true;
+
+      // Adiciona listener para input manual
+      if (mode === 'manual') {
+        document.getElementById('userId').addEventListener('input', debounce(loadUserInfo, 500));
+      }
+    }
+
+    // Debounce helper
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // Helpers
+    function showAlert(message, type) {
+      const alert = document.getElementById('alert');
+      alert.textContent = message;
+      alert.className = `alert alert-${type}`;
+      alert.style.display = 'block';
+
+      setTimeout(() => {
+        alert.style.display = 'none';
+      }, 5000);
+    }
+
+    function showLoading(show) {
+      document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', () => {
+      checkUrlParams();
+      loadUsers();
+    });
+  </script>
+</body>
+</html>
