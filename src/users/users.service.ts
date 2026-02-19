@@ -223,7 +223,7 @@ export class UsersService {
 
     const now = new Date();
     const tokenExpiresAt = new Date(user.fitbitTokenExpiresAt);
-    const bufferTime = 5 * 60 * 1000;
+    const bufferTime = 15 * 60 * 1000;
 
     if (tokenExpiresAt.getTime() - now.getTime() < bufferTime) {
       const refreshedTokens = await this.fitbitService.refreshAccessToken(

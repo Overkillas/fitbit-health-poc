@@ -1,35 +1,35 @@
-[English](README.md) | Portugues
+[English](README.md) | Português
 
 # Fitbit API Integration - NestJS
 
-> **Aviso: Este projeto e uma Prova de Conceito (POC).** Nao e production-ready. Foi construido para demonstrar a viabilidade de integrar a Fitbit Web API com um backend NestJS para monitoramento remoto de saude de pacientes. Os seguintes trade-offs foram feitos intencionalmente para manter o foco na integracao principal:
+> **Aviso: Este projeto é uma Prova de Conceito (POC).** Não é production-ready. Foi construído para demonstrar a viabilidade de integrar a Fitbit Web API com um backend NestJS para monitoramento remoto de saúde de pacientes. Os seguintes trade-offs foram feitos intencionalmente para manter o foco na integração principal:
 >
-> - **Sem autenticacao/autorizacao na API** — os endpoints nao sao protegidos. A POC foca em demonstrar a integracao OAuth2 com o Fitbit, coleta de dados e o fluxo medico-paciente, nao em construir um sistema completo de auth. Em producao, seria necessario autenticacao JWT com guards por role (DOCTOR/PATIENT).
+> - **Sem autenticação/autorização na API** — os endpoints não são protegidos. A POC foca em demonstrar a integração OAuth2 com o Fitbit, coleta de dados e o fluxo médico-paciente, não em construir um sistema completo de auth. Em produção, seria necessário autenticação JWT com guards por role (DOCTOR/PATIENT).
 > - **Tokens Fitbit armazenados como texto plano** no banco (deveriam ser criptografados).
-> - **`synchronize: true`** no TypeORM — sincroniza schema automaticamente. Em producao, usar migrations.
-> - **Sem rate limiting** — o Fitbit impoe 150 req/hora por usuario; esta API nao faz throttle nem cache.
+> - **`synchronize: true`** no TypeORM — sincroniza schema automaticamente. Em produção, usar migrations.
+> - **Sem rate limiting** — o Fitbit impõe 150 req/hora por usuário; esta API não faz throttle nem cache.
 
-API backend desenvolvida com NestJS para integracao com a API do Fitbit. POC que permite medicos monitorarem dados de saude de seus pacientes atraves de relogios Fitbit (Flex 2 e Inspire HR).
+API backend desenvolvida com NestJS para integração com a API do Fitbit. POC que permite médicos monitorarem dados de saúde de seus pacientes através de relógios Fitbit (Flex 2 e Inspire HR).
 
 ## Sobre o Projeto
 
-Sistema com cadastro de medicos e pacientes, autenticacao OAuth2 com Fitbit, coleta automatica de dados de saude e interface web para visualizacao. O medico visualiza dados de todos os seus pacientes vinculados em um unico painel.
+Sistema com cadastro de médicos e pacientes, autenticação OAuth2 com Fitbit, coleta automática de dados de saúde e interface web para visualização. O médico visualiza dados de todos os seus pacientes vinculados em um único painel.
 
 ## Funcionalidades
 
-- Autenticacao OAuth2 com Fitbit (Authorization Code Grant)
-- CRUD de usuarios (medicos e pacientes)
-- Vinculacao medico -> pacientes
-- Persistencia de tokens Fitbit no banco (PostgreSQL)
-- Auto-refresh de tokens (buffer de 5 min antes da expiracao)
+- Autenticação OAuth2 com Fitbit (Authorization Code Grant)
+- CRUD de usuários (médicos e pacientes)
+- Vinculação médico -> pacientes
+- Persistência de tokens Fitbit no banco (PostgreSQL)
+- Auto-refresh de tokens (buffer de 15 min antes da expiração)
 - Cron job a cada 10 min para verificar sync dos dispositivos
-- Historico de sincronizacoes (SyncHistory)
-- Dados de atividade, sono, frequencia cardiaca, perfil e dispositivos
+- Histórico de sincronizações (SyncHistory)
+- Dados de atividade, sono, frequência cardíaca, perfil e dispositivos
 - Time series e intraday (minuto a minuto)*
 - Subscriptions (webhooks) e SSE para dados em tempo real
-- Interface web para gerenciamento e visualizacao
+- Interface web para gerenciamento e visualização
 
-\* Dados intraday requerem aplicacao tipo "Personal" ou aprovacao especial do Fitbit.
+\* Dados intraday requerem aplicação tipo "Personal" ou aprovação especial do Fitbit.
 
 ## Stack
 
@@ -41,11 +41,11 @@ Sistema com cadastro de medicos e pacientes, autenticacao OAuth2 com Fitbit, col
 - **Events**: [@nestjs/event-emitter](https://docs.nestjs.com/techniques/events) (webhooks)
 - **API**: [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/)
 
-## Instalacao
+## Instalação
 
-### Pre-requisitos
+### Pré-requisitos
 
-- Node.js (versao 16 ou superior)
+- Node.js (versão 16 ou superior)
 - PostgreSQL (ou Docker)
 - Conta de desenvolvedor no [Fitbit](https://dev.fitbit.com/apps)
 
@@ -63,7 +63,7 @@ npm install
 docker compose up -d
 ```
 
-### 3. Configure as variaveis de ambiente
+### 3. Configure as variáveis de ambiente
 
 Crie um arquivo `.env` na raiz do projeto:
 
@@ -80,7 +80,7 @@ DB_PASSWORD=password
 DB_NAME=fitbit_db
 ```
 
-### 4. Registre sua aplicacao no Fitbit
+### 4. Registre sua aplicação no Fitbit
 
 1. Acesse [Fitbit Developer](https://dev.fitbit.com/apps)
 2. Clique em "Register a new app"
@@ -96,70 +96,70 @@ DB_NAME=fitbit_db
 # Desenvolvimento
 npm run start:dev
 
-# Producao
+# Produção
 npm run build && npm run start:prod
 ```
 
-O servidor estara rodando em `http://localhost:3003`
+O servidor estará rodando em `http://localhost:3003`
 
 ## Interface Web
 
-A aplicacao inclui uma interface web acessivel em `http://localhost:3003`. Paginas disponiveis:
+A aplicação inclui uma interface web acessível em `http://localhost:3003`. Páginas disponíveis:
 
-| Pagina | Descricao |
+| Página | Descrição |
 |--------|-----------|
-| **Dashboard** | Visao geral com contadores (total de usuarios, medicos, pacientes, conectados ao Fitbit) |
-| **Usuarios** | CRUD completo - cadastrar, editar e remover medicos e pacientes. Vincular paciente a medico. Botao para conectar/desconectar Fitbit |
-| **Dados Resumidos** | Selecionar um medico e visualizar dados de todos os pacientes por abas: Atividade, Sono, Semana e Perfil. Inclui badge de ultimo sync por paciente |
-| **Dados Completos** | Selecionar um medico e visualizar todos os dados consolidados de cada paciente (atividade + sono + FC + perfil + dispositivos + historico de sync) |
+| **Dashboard** | Visão geral com contadores (total de usuários, médicos, pacientes, conectados ao Fitbit) |
+| **Usuários** | CRUD completo - cadastrar, editar e remover médicos e pacientes. Vincular paciente a médico. Botão para conectar/desconectar Fitbit |
+| **Dados Resumidos** | Selecionar um médico e visualizar dados de todos os pacientes por abas: Atividade, Sono, Semana e Perfil. Inclui badge de último sync por paciente |
+| **Dados Completos** | Selecionar um médico e visualizar todos os dados consolidados de cada paciente (atividade + sono + FC + perfil + dispositivos + histórico de sync) |
 
-Alem disso, a pagina `/fitbit/connect` fornece a interface para o fluxo OAuth2 de vinculacao do Fitbit a um usuario.
+Além disso, a página `/fitbit/connect` fornece a interface para o fluxo OAuth2 de vinculação do Fitbit a um usuário.
 
 ## Endpoints
 
-### Autenticacao Fitbit
+### Autenticação Fitbit
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
 | GET | `/fitbit/auth?userId=:id` | Inicia fluxo OAuth2 (redireciona para Fitbit) |
 | GET | `/fitbit/callback` | Callback do OAuth2 (chamado pelo Fitbit) |
 | POST | `/fitbit/refresh` | Renova access token (body: `{ "refreshToken": "..." }`) |
-| GET | `/fitbit/connect` | Pagina web para conectar Fitbit |
+| GET | `/fitbit/connect` | Página web para conectar Fitbit |
 
-### CRUD de Usuarios
+### CRUD de Usuários
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| POST | `/users` | Criar usuario (medico ou paciente) |
-| GET | `/users` | Listar todos os usuarios |
-| GET | `/users/doctors` | Listar medicos |
+| POST | `/users` | Criar usuário (médico ou paciente) |
+| GET | `/users` | Listar todos os usuários |
+| GET | `/users/doctors` | Listar médicos |
 | GET | `/users/patients` | Listar pacientes |
-| GET | `/users/:id` | Buscar usuario por ID |
-| PUT | `/users/:id` | Atualizar usuario |
-| DELETE | `/users/:id` | Remover usuario |
+| GET | `/users/:id` | Buscar usuário por ID |
+| PUT | `/users/:id` | Atualizar usuário |
+| DELETE | `/users/:id` | Remover usuário |
 
-### Dados Fitbit por Usuario
+### Dados Fitbit por Usuário
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| GET | `/users/:id/fitbit/activity?date=YYYY-MM-DD` | Atividade diaria |
+| GET | `/users/:id/fitbit/activity?date=YYYY-MM-DD` | Atividade diária |
 | GET | `/users/:id/fitbit/sleep?date=YYYY-MM-DD` | Dados de sono |
 | GET | `/users/:id/fitbit/week?weekStart=YYYY-MM-DD` | Dados de 7 dias (atividade + sono) |
-| GET | `/users/:id/fitbit/heart-rate?date=YYYY-MM-DD` | Frequencia cardiaca intraday |
-| GET | `/users/:id/fitbit/time-series?resource=steps&startDate=...&endDate=...` | Time series por periodo |
+| GET | `/users/:id/fitbit/heart-rate?date=YYYY-MM-DD` | Frequência cardíaca intraday |
+| GET | `/users/:id/fitbit/time-series?resource=steps&startDate=...&endDate=...` | Time series por período |
 | GET | `/users/:id/fitbit/intraday?resource=steps&startDate=...&endDate=...` | Intraday minuto a minuto |
 | GET | `/users/:id/fitbit/profile` | Perfil Fitbit (nome, idade, altura, peso) |
-| GET | `/users/:id/fitbit/devices` | Dispositivos e ultimo sync |
-| GET | `/users/:id/fitbit/sync-history?limit=20` | Historico de sincronizacoes |
+| GET | `/users/:id/fitbit/devices` | Dispositivos e último sync |
+| GET | `/users/:id/fitbit/sync-history?limit=20` | Histórico de sincronizações |
 | GET | `/users/:id/fitbit/all?date=YYYY-MM-DD` | Todos os dados do dia (atividade + sono + FC) |
-| POST | `/users/:id/fitbit` | Vincular tokens Fitbit ao usuario |
-| DELETE | `/users/:id/fitbit` | Desconectar Fitbit do usuario |
+| POST | `/users/:id/fitbit` | Vincular tokens Fitbit ao usuário |
+| DELETE | `/users/:id/fitbit` | Desconectar Fitbit do usuário |
 
-### Visao do Medico (dados dos pacientes)
+### Visão do Médico (dados dos pacientes)
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| GET | `/users/:id/patients` | Listar pacientes do medico |
+| GET | `/users/:id/patients` | Listar pacientes do médico |
 | GET | `/users/:id/patients/fitbit/activity?date=...` | Atividade de todos os pacientes |
 | GET | `/users/:id/patients/fitbit/sleep?date=...` | Sono de todos os pacientes |
 | GET | `/users/:id/patients/fitbit/week?weekStart=...` | Dados semanais de todos os pacientes |
@@ -168,9 +168,9 @@ Alem disso, a pagina `/fitbit/connect` fornece a interface para o fluxo OAuth2 d
 
 ### Endpoints diretos (acesso com Fitbit token via header)
 
-Estes endpoints aceitam um Fitbit access token diretamente via header `Authorization: Bearer <fitbit_token>`, sem necessidade de um usuario cadastrado no sistema.
+Estes endpoints aceitam um Fitbit access token diretamente via header `Authorization: Bearer <fitbit_token>`, sem necessidade de um usuário cadastrado no sistema.
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
 | GET | `/fitbit/activity?date=...` | Atividade |
 | GET | `/fitbit/sleep?date=...` | Sono |
@@ -180,58 +180,58 @@ Estes endpoints aceitam um Fitbit access token diretamente via header `Authoriza
 | GET | `/fitbit/heart-rate-intraday?date=...` | FC intraday |
 | POST | `/fitbit/refresh` | Renovar token (body: `{ "refreshToken": "..." }`) |
 
-### Sessoes e Tempo Real
+### Sessões e Tempo Real
 
-| Metodo | Endpoint | Descricao |
+| Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| POST | `/fitbit/session/:sessionId/patient` | Adicionar paciente a sessao |
-| DELETE | `/fitbit/session/:sessionId/patient/:patientId` | Remover paciente da sessao |
+| POST | `/fitbit/session/:sessionId/patient` | Adicionar paciente à sessão |
+| DELETE | `/fitbit/session/:sessionId/patient/:patientId` | Remover paciente da sessão |
 | SSE | `/fitbit/session/:sessionId/live` | Stream de dados em tempo real |
-| DELETE | `/fitbit/session/:sessionId` | Encerrar sessao |
-| POST | `/fitbit/webhook` | Receber notificacoes do Fitbit |
+| DELETE | `/fitbit/session/:sessionId` | Encerrar sessão |
+| POST | `/fitbit/webhook` | Receber notificações do Fitbit |
 
 ## Cobertura de Dados: Esta API vs Fitbit Web API
 
-Comparacao entre todos os tipos de dados disponiveis na [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/) e o que esta API implementa. A coluna **Restricao de Hardware** indica quando um dado **nao pode ser coletado** pelos modelos Flex 2 e/ou Inspire HR usados nesta POC.
+Comparação entre todos os tipos de dados disponíveis na [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/) e o que esta API implementa. A coluna **Restrição de Hardware** indica quando um dado **não pode ser coletado** pelos modelos Flex 2 e/ou Inspire HR usados nesta POC.
 
-| Categoria | Dado | Fitbit Web API | Esta API | Restricao de Hardware (Flex 2 / Inspire HR) |
+| Categoria | Dado | Fitbit Web API | Esta API | Restrição de Hardware (Flex 2 / Inspire HR) |
 |-----------|------|:--------------:|:--------:|----------------------------------------------|
 | **Atividade** | Passos | ✅ | ✅ | Nenhuma |
 | | Calorias | ✅ | ✅ | Nenhuma |
-| | Distancia | ✅ | ✅ | Nenhuma |
-| | Andares (floors) | ✅ | ✅ | ⚠️ **Ambos sem altimetro** - retorna 0 |
-| | Elevacao | ✅ | ✅ | ⚠️ **Ambos sem altimetro** - retorna 0 |
-| | Minutos sedentario | ✅ | ✅ | Nenhuma |
+| | Distância | ✅ | ✅ | Nenhuma |
+| | Andares (floors) | ✅ | ✅ | ⚠️ **Ambos sem altímetro** - retorna 0 |
+| | Elevação | ✅ | ✅ | ⚠️ **Ambos sem altímetro** - retorna 0 |
+| | Minutos sedentário | ✅ | ✅ | Nenhuma |
 | | Minutos levemente ativo | ✅ | ✅ | Nenhuma |
 | | Minutos moderadamente ativo | ✅ | ✅ | Nenhuma |
 | | Minutos muito ativo | ✅ | ✅ | Nenhuma |
-| | Active Zone Minutes (AZM) | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - nao coleta |
+| | Active Zone Minutes (AZM) | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - não coleta |
 | | Intraday de atividade | ✅ | ✅ | Nenhuma (requer app Personal) |
 | **Sono** | Resumo de sono | ✅ | ✅ | Nenhuma |
-| | Estagios (light/deep/REM) | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - retorna apenas sono basico (awake/asleep/restless) |
+| | Estágios (light/deep/REM) | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - retorna apenas sono básico (awake/asleep/restless) |
 | | Sleep time series | ✅ | ❌ | Nenhuma |
-| **Freq. Cardiaca** | Heart rate diario (zonas) | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - nao coleta |
-| | Heart rate intraday | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - nao coleta |
-| | Heart Rate Variability (HRV) | ✅ | ❌ | ⚠️ **Ambos nao suportam** HRV |
-| **Respiracao** | Breathing rate | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - nao coleta |
+| **Freq. Cardíaca** | Heart rate diário (zonas) | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - não coleta |
+| | Heart rate intraday | ✅ | ✅ | ⚠️ **Flex 2 sem HR** - não coleta |
+| | Heart Rate Variability (HRV) | ✅ | ❌ | ⚠️ **Ambos não suportam** HRV |
+| **Respiração** | Breathing rate | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - não coleta |
 | **Temperatura** | Temperatura da pele | ✅ | ❌ | ⚠️ **Ambos sem sensor de temp.** |
 | | Temperatura corporal (manual) | ✅ | ❌ | Nenhuma (entrada manual) |
-| **Oxigenacao** | SpO2 | ✅ | ❌ | ⚠️ **Ambos sem sensor SpO2** |
-| **Cardio Fitness** | VO2 Max | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - nao calcula |
-| **Corpo** | Peso | ✅ | ❌ | Nenhuma (scope ja autorizado) |
-| | Gordura corporal | ✅ | ❌ | Nenhuma (requer balanca Aria) |
+| **Oxigenação** | SpO2 | ✅ | ❌ | ⚠️ **Ambos sem sensor SpO2** |
+| **Cardio Fitness** | VO2 Max | ✅ | ❌ | ⚠️ **Flex 2 sem HR** - não calcula |
+| **Corpo** | Peso | ✅ | ❌ | Nenhuma (scope já autorizado) |
+| | Gordura corporal | ✅ | ❌ | Nenhuma (requer balança Aria) |
 | | IMC | ✅ | ❌ | Nenhuma |
-| **Nutricao** | Alimentos registrados | ✅ | ❌ | Nenhuma (entrada manual) |
-| | Agua | ✅ | ❌ | Nenhuma (entrada manual) |
+| **Nutrição** | Alimentos registrados | ✅ | ❌ | Nenhuma (entrada manual) |
+| | Água | ✅ | ❌ | Nenhuma (entrada manual) |
 | **ECG** | Eletrocardiograma | ✅ | ❌ | ⚠️ **Ambos sem sensor ECG** (apenas Sense/Sense 2) |
 | **IRN** | Irregular Rhythm Notifications | ✅ | ❌ | ⚠️ **Ambos sem sensor ECG** (apenas Sense/Sense 2) |
-| **Perfil** | Dados do usuario | ✅ | ✅ | Nenhuma |
+| **Perfil** | Dados do usuário | ✅ | ✅ | Nenhuma |
 | **Dispositivos** | Lista de devices | ✅ | ✅ | Nenhuma |
-| **OAuth** | Autenticacao | ✅ | ✅ | Nenhuma |
+| **OAuth** | Autenticação | ✅ | ✅ | Nenhuma |
 | | Refresh token | ✅ | ✅ | Nenhuma |
 | **Subscriptions** | Webhooks | ✅ | ✅ | Nenhuma |
 
-**Legenda**: ⚠️ = limitacao de hardware dos modelos usados nesta POC. O endpoint pode existir na Fitbit Web API, mas o dispositivo nao possui o sensor necessario para gerar os dados.
+**Legenda**: ⚠️ = limitação de hardware dos modelos usados nesta POC. O endpoint pode existir na Fitbit Web API, mas o dispositivo não possui o sensor necessário para gerar os dados.
 
 ### Cobertura por Modelo: Flex 2 vs Inspire HR
 
@@ -241,67 +241,68 @@ Os modelos **Flex 2** e **Inspire HR** possuem sensores diferentes, o que impact
 
 | Sensor | Flex 2 | Inspire HR |
 |--------|:------:|:----------:|
-| Acelerometro 3 eixos | ✅ | ✅ |
-| Monitor optico de freq. cardiaca | ❌ | ✅ |
-| Altimetro | ❌ | ❌ |
+| Acelerômetro 3 eixos | ✅ | ✅ |
+| Monitor óptico de freq. cardíaca | ❌ | ✅ |
+| Altímetro | ❌ | ❌ |
 | GPS (conectado ao celular) | ❌ | ✅ |
 | Sensor SpO2 | ❌ | ❌ |
 | Sensor de temperatura | ❌ | ❌ |
 | Tela OLED | ❌ | ✅ |
-| Resistencia a agua | 10m | 50m |
+| Resistência à água | 10m | 50m |
 
-#### Dados Coletaveis via Esta API
+#### Dados Coletáveis via Esta API
 
-| Dado | Flex 2 | Inspire HR | Endpoint | Motivo da restricao |
+| Dado | Flex 2 | Inspire HR | Endpoint | Motivo da restrição |
 |------|:------:|:----------:|----------|---------------------|
 | Passos | ✅ | ✅ | `/users/:id/fitbit/activity` | |
 | Calorias | ✅ | ✅ | `/users/:id/fitbit/activity` | |
-| Distancia | ✅ | ✅ | `/users/:id/fitbit/activity` | |
-| Andares (floors) | ❌ | ❌ | — | Sem altimetro em ambos |
+| Distância | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Andares (floors) | ❌ | ❌ | — | Sem altímetro em ambos |
 | Minutos ativos | ✅ | ✅ | `/users/:id/fitbit/activity` | |
 | Intraday de atividade | ✅ | ✅ | `/users/:id/fitbit/intraday` | |
-| Sono (duracao total) | ✅ | ✅ | `/users/:id/fitbit/sleep` | |
-| Sono (estagios light/deep/REM) | ❌ | ✅ | `/users/:id/fitbit/sleep` | Flex 2 sem sensor HR |
-| Freq. cardiaca (24/7) | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 sem sensor HR |
-| Freq. cardiaca intraday | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 sem sensor HR |
-| Zonas de freq. cardiaca | ❌ | ✅ | `/users/:id/fitbit/activity` | Flex 2 sem sensor HR |
-| Active Zone Minutes | ❌ | ⚠️ | — | Nao implementado (Inspire HR suporta) |
-| VO2 Max | ❌ | ⚠️ | — | Nao implementado (Inspire HR suporta) |
-| Breathing rate | ❌ | ⚠️ | — | Nao implementado (Inspire HR suporta) |
+| Sono (duração total) | ✅ | ✅ | `/users/:id/fitbit/sleep` | |
+| Sono (estágios light/deep/REM) | ❌ | ✅ | `/users/:id/fitbit/sleep` | Flex 2 sem sensor HR |
+| Freq. cardíaca (24/7) | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 sem sensor HR |
+| Freq. cardíaca intraday | ❌ | ✅ | `/users/:id/fitbit/heart-rate` | Flex 2 sem sensor HR |
+| Zonas de freq. cardíaca | ❌ | ✅ | `/users/:id/fitbit/activity` | Flex 2 sem sensor HR |
+| Active Zone Minutes | ❌ | ⚠️ | — | Não implementado (Inspire HR suporta) |
+| VO2 Max | ❌ | ⚠️ | — | Não implementado (Inspire HR suporta) |
+| Breathing rate | ❌ | ⚠️ | — | Não implementado (Inspire HR suporta) |
 | GPS conectado | ❌ | ✅ | `/users/:id/fitbit/activity` | Flex 2 sem GPS |
-| Reconhecimento auto. de exercicio | ✅ | ✅ | `/users/:id/fitbit/activity` | |
-| Perfil do usuario | ✅ | ✅ | `/users/:id/fitbit/profile` | |
-| Dispositivos e ultimo sync | ✅ | ✅ | `/users/:id/fitbit/devices` | |
-| Historico de sync | ✅ | ✅ | `/users/:id/fitbit/sync-history` | |
+| Reconhecimento auto. de exercício | ✅ | ✅ | `/users/:id/fitbit/activity` | |
+| Perfil do usuário | ✅ | ✅ | `/users/:id/fitbit/profile` | |
+| Dispositivos e último sync | ✅ | ✅ | `/users/:id/fitbit/devices` | |
+| Histórico de sync | ✅ | ✅ | `/users/:id/fitbit/sync-history` | |
 | Dados semanais | ✅ | ✅ | `/users/:id/fitbit/week` | |
 | Time series | ✅ | ✅ | `/users/:id/fitbit/time-series` | |
 | SpO2 | ❌ | ❌ | — | Sem sensor em ambos |
 | Temperatura da pele | ❌ | ❌ | — | Sem sensor em ambos |
 | ECG | ❌ | ❌ | — | Sem sensor em ambos |
-| HRV | ❌ | ❌ | — | Ambos nao suportam |
+| HRV | ❌ | ❌ | — | Ambos não suportam |
 
-**Legenda**: ✅ = disponivel | ❌ = indisponivel (sem hardware) | ⚠️ = hardware suporta, mas endpoint nao implementado nesta API
+**Legenda**: ✅ = disponível | ❌ = indisponível (sem hardware) | ⚠️ = hardware suporta, mas endpoint não implementado nesta API
 
-> **Resumo**: O **Inspire HR** fornece dados significativamente mais ricos que o **Flex 2** gracas ao sensor de frequencia cardiaca, que habilita estagios de sono, zonas de FC, VO2 Max e breathing rate. O **Flex 2** e limitado a dados baseados em acelerometro (passos, distancia, sono basico). Nenhum dos dois modelos possui sensores de SpO2, temperatura, ECG ou altimetro.
+> **Resumo**: O **Inspire HR** fornece dados significativamente mais ricos que o **Flex 2** graças ao sensor de frequência cardíaca, que habilita estágios de sono, zonas de FC, VO2 Max e breathing rate. O **Flex 2** é limitado a dados baseados em acelerômetro (passos, distância, sono básico). Nenhum dos dois modelos possui sensores de SpO2, temperatura, ECG ou altímetro.
 
-## Limitacoes e Consideracoes
+## Limitações e Considerações
 
 ### Dados Intraday (403 Forbidden)
-Aplicacoes do tipo "Server" **nao tem acesso** a dados intraday por padrao. Para obter acesso:
-- Solicite permissao especial em https://dev.fitbit.com/build/reference/web-api/intraday/
-- Ou use aplicacao tipo "Personal" (apenas para seus proprios dados)
+Aplicações do tipo "Server" **não têm acesso** a dados intraday por padrão. Para obter acesso:
+- Solicite permissão especial em https://dev.fitbit.com/build/reference/web-api/intraday/
+- Ou use aplicação tipo "Personal" (apenas para seus próprios dados)
 
 ### Rate Limits
-- **150 requisicoes por hora** por usuario
-- **Intraday**: 1 requisicao por segundo
+- **150 requisições por hora** por usuário
+- **Intraday**: 1 requisição por segundo
 
-### Expiracao de Tokens
-- Access tokens expiram em **8 horas**
-- O cron job renova automaticamente tokens proximos da expiracao
-- Refresh tokens podem ser revogados se o usuario revogar acesso no Fitbit ou trocar a senha
+### Expiração de Tokens
+- **Access Token**: expira em **8 horas**
+- **Refresh Token**: **não expira** por tempo — permanece válido indefinidamente até ser usado. Cada refresh token é de **uso único**: ao ser utilizado, um novo access token **e** um novo refresh token são retornados. O refresh token antigo é invalidado imediatamente
+- Refresh tokens podem ser revogados se o usuário revogar acesso no Fitbit ou trocar a senha
+- O cron job (a cada 10 min) e as requisições sob demanda renovam tokens automaticamente faltando **15 minutos** para a expiração
 
-### Limitacoes de Hardware (Flex 2 e Inspire HR)
-- **Andares/elevacao**: Ambos sem altimetro, endpoint retorna 0
-- **Frequencia cardiaca**: Flex 2 nao possui sensor optico de HR
-- **Estagios de sono**: Flex 2 retorna apenas sono basico (awake/asleep/restless)
+### Limitações de Hardware (Flex 2 e Inspire HR)
+- **Andares/elevação**: Ambos sem altímetro, endpoint retorna 0
+- **Frequência cardíaca**: Flex 2 não possui sensor óptico de HR
+- **Estágios de sono**: Flex 2 retorna apenas sono básico (awake/asleep/restless)
 - **SpO2, temperatura, ECG, HRV**: Nenhum dos dois modelos possui esses sensores

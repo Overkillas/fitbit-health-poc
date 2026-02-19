@@ -21,7 +21,7 @@ System with doctor and patient registration, OAuth2 authentication with Fitbit, 
 - User CRUD (doctors and patients)
 - Doctor-patient linking
 - Fitbit token persistence in PostgreSQL
-- Automatic token refresh (5-minute buffer before expiration)
+- Automatic token refresh (15-minute buffer before expiration)
 - Cron job every 10 minutes to check device sync status
 - Sync history tracking (SyncHistory entity)
 - Activity, sleep, heart rate, profile, and device data
@@ -296,9 +296,10 @@ The **Flex 2** and **Inspire HR** have different sensors, which directly impacts
 - **Intraday**: 1 request per second
 
 ### Token Expiration
-- Access tokens expire in **8 hours**
-- The cron job automatically refreshes tokens approaching expiration
+- **Access Token**: expires in **8 hours**
+- **Refresh Token**: does **not expire** by time — it remains valid indefinitely until used. Each refresh token is **single-use**: when used, a new access token **and** a new refresh token are returned. The old refresh token is immediately invalidated
 - Refresh tokens can be revoked if the user revokes access on Fitbit or changes their password
+- The cron job (every 10 min) and on-demand requests automatically refresh tokens within **15 minutes** of expiration
 
 ### Hardware Limitations (Flex 2 and Inspire HR)
 - **Floors/elevation**: Both lack an altimeter, endpoint returns 0
