@@ -70,8 +70,11 @@
     .data-item .label { font-size: 11px; color: #666; margin-top: 4px; }
     .data-item.highlight { background: linear-gradient(135deg, #667eea22 0%, #764ba222 100%); border: 1px solid #667eea44; }
 
-    .section-title { font-size: 14px; font-weight: 600; color: #667eea; margin: 20px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; gap: 8px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #667eea; margin: 20px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .section-title:hover { color: #5a6fd6; }
     .section-title svg { width: 18px; height: 18px; }
+    .section-title .chevron { width: 20px; height: 20px; margin-left: auto; transition: transform 0.3s; flex-shrink: 0; }
+    .section-title.collapsed .chevron { transform: rotate(-90deg); }
 
     .loading { text-align: center; padding: 40px; color: #666; }
     .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
@@ -102,6 +105,10 @@
     .collapsible { cursor: pointer; user-select: none; }
     .collapsible-content { display: none; }
     .collapsible-content.show { display: block; }
+    .patient-header.clickable { cursor: pointer; user-select: none; }
+    .patient-header.clickable:hover { filter: brightness(1.1); }
+    .patient-header .chevron { width: 20px; height: 20px; transition: transform 0.3s; flex-shrink: 0; }
+    .patient-header.collapsed .chevron { transform: rotate(-90deg); }
   </style>
 </head>
 <body>
@@ -237,6 +244,51 @@
     let allUsers = [];
     let currentDataTab = 'activity';
     const deviceSyncCache = {}; // userId -> { lastSyncTime, devices }
+    const CHEVRON = '<svg class="chevron" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>';
+    const CHEVRON_WHITE = '<svg class="chevron" viewBox="0 0 24 24" fill="white"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>';
+
+    function makeCollapsible(container) {
+      // Section titles -> collapsible dropdowns
+      container.querySelectorAll('.section-title').forEach(title => {
+        title.insertAdjacentHTML('beforeend', CHEVRON);
+        const elements = [];
+        let sibling = title.nextElementSibling;
+        while (sibling && !sibling.classList.contains('section-title')) {
+          elements.push(sibling);
+          sibling = sibling.nextElementSibling;
+        }
+        if (elements.length > 0) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'collapsible-content show';
+          title.after(wrapper);
+          elements.forEach(el => wrapper.appendChild(el));
+        }
+        title.onclick = function() {
+          const content = this.nextElementSibling;
+          if (content && content.classList.contains('collapsible-content')) {
+            content.classList.toggle('show');
+            this.classList.toggle('collapsed');
+          }
+        };
+      });
+
+      // Patient headers -> collapsible cards
+      container.querySelectorAll('.patient-header').forEach(header => {
+        const body = header.nextElementSibling;
+        if (!body || !body.classList.contains('patient-body')) return;
+        header.classList.add('clickable');
+        const rightEl = header.lastElementChild;
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'display:flex;align-items:center;gap:8px';
+        rightEl.replaceWith(wrapper);
+        wrapper.appendChild(rightEl);
+        wrapper.insertAdjacentHTML('beforeend', CHEVRON_WHITE);
+        header.onclick = function() {
+          body.style.display = body.style.display === 'none' ? '' : 'none';
+          this.classList.toggle('collapsed');
+        };
+      });
+    }
 
     // ===== Navigation =====
     function showPage(page) {
@@ -406,6 +458,7 @@
         else if (currentDataTab === 'sleep') renderSleepData(data, container);
         else if (currentDataTab === 'week') renderWeekData(data, container);
         else if (currentDataTab === 'profile') renderProfileData(data, container);
+        makeCollapsible(container);
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
@@ -533,6 +586,7 @@
         );
 
         container.innerHTML = data.map(patient => renderFullPatientData(patient, syncData[patient.userId])).join('');
+        makeCollapsible(container);
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
@@ -554,7 +608,13 @@
 
       // Info do dispositivo, último sync e perfil
       const devices = syncInfo?.devices || [];
-      const mainDevice = devices[0];
+      const mainDevice = devices.length > 0
+        ? devices.reduce((latest, d) => {
+            if (!d.lastSyncTime) return latest;
+            if (!latest || !latest.lastSyncTime) return d;
+            return new Date(d.lastSyncTime) > new Date(latest.lastSyncTime) ? d : latest;
+          }, null)
+        : null;
       const lastSync = mainDevice?.lastSyncTime;
       const profile = syncInfo?.profile?.user || {};
 
