@@ -23,7 +23,8 @@ System with doctor and patient registration, OAuth2 authentication with Fitbit, 
 - Fitbit token persistence in PostgreSQL
 - Automatic token refresh (15-minute buffer before expiration)
 - Cron job every 10 minutes to check device sync status
-- Sync history tracking (SyncHistory entity)
+- Sync history tracking per device (`SyncHistory` entity — stores `deviceId`, `batteryLevel` %, model name, type, and sync timestamp)
+- Battery level temporal chart (Chart.js) with device filter, date range, and per-entry selection
 - Activity, sleep, heart rate, profile, and device data
 - Time series and intraday data (minute-by-minute)\*
 - Subscriptions (webhooks) and SSE for real-time data
@@ -110,8 +111,8 @@ The application includes a web interface accessible at `http://localhost:3003`. 
 |------|-------------|
 | **Dashboard** | Overview with counters (total users, doctors, patients, Fitbit-connected) |
 | **Users** | Full CRUD — register, edit, and remove doctors and patients. Link patients to doctors. Connect/disconnect Fitbit |
-| **Summary Data** | Select a doctor and view all patients' data by tabs: Activity, Sleep, Week, and Profile. Includes last sync badge per patient |
-| **Full Data** | Select a doctor and view all consolidated data per patient (activity + sleep + HR + profile + devices + sync history) |
+| **Summary Data** | Select a doctor and view all patients' data by tabs: Activity, Sleep, Week, Profile, and **Devices**. The Devices tab shows live device info and sync history with battery % chart per patient |
+| **Full Data** | Select a doctor and view all consolidated data per patient (activity + sleep + HR + profile + devices + sync history with battery % chart) |
 
 Additionally, `/fitbit/connect` provides the interface for the Fitbit OAuth2 linking flow.
 
@@ -150,7 +151,7 @@ Additionally, `/fitbit/connect` provides the interface for the Fitbit OAuth2 lin
 | GET | `/users/:id/fitbit/intraday?resource=steps&startDate=...&endDate=...` | Minute-by-minute intraday |
 | GET | `/users/:id/fitbit/profile` | Fitbit profile (name, age, height, weight) |
 | GET | `/users/:id/fitbit/devices` | Devices and last sync |
-| GET | `/users/:id/fitbit/sync-history?limit=20` | Sync history |
+| GET | `/users/:id/fitbit/sync-history?limit=20` | Sync history (includes `batteryLevel` % and `deviceId` per record) |
 | GET | `/users/:id/fitbit/all?date=YYYY-MM-DD` | All daily data (activity + sleep + HR) |
 | POST | `/users/:id/fitbit` | Link Fitbit tokens to user |
 | DELETE | `/users/:id/fitbit` | Disconnect Fitbit from user |

@@ -23,7 +23,8 @@ Sistema com cadastro de médicos e pacientes, autenticação OAuth2 com Fitbit, 
 - Persistência de tokens Fitbit no banco (PostgreSQL)
 - Auto-refresh de tokens (buffer de 15 min antes da expiração)
 - Cron job a cada 10 min para verificar sync dos dispositivos
-- Histórico de sincronizações (SyncHistory)
+- Histórico de sincronizações por dispositivo (entidade `SyncHistory` — armazena `deviceId`, `batteryLevel` %, modelo, tipo e timestamp de sync)
+- Gráfico temporal de bateria (Chart.js) com filtro por dispositivo, intervalo de datas e seleção individual de entradas
 - Dados de atividade, sono, frequência cardíaca, perfil e dispositivos
 - Time series e intraday (minuto a minuto)*
 - Subscriptions (webhooks) e SSE para dados em tempo real
@@ -110,8 +111,8 @@ A aplicação inclui uma interface web acessível em `http://localhost:3003`. P�
 |--------|-----------|
 | **Dashboard** | Visão geral com contadores (total de usuários, médicos, pacientes, conectados ao Fitbit) |
 | **Usuários** | CRUD completo - cadastrar, editar e remover médicos e pacientes. Vincular paciente a médico. Botão para conectar/desconectar Fitbit |
-| **Dados Resumidos** | Selecionar um médico e visualizar dados de todos os pacientes por abas: Atividade, Sono, Semana e Perfil. Inclui badge de último sync por paciente |
-| **Dados Completos** | Selecionar um médico e visualizar todos os dados consolidados de cada paciente (atividade + sono + FC + perfil + dispositivos + histórico de sync) |
+| **Dados Resumidos** | Selecionar um médico e visualizar dados de todos os pacientes por abas: Atividade, Sono, Semana, Perfil e **Dispositivos**. A aba Dispositivos exibe dados ao vivo do dispositivo e histórico de sync com gráfico de bateria % por paciente |
+| **Dados Completos** | Selecionar um médico e visualizar todos os dados consolidados de cada paciente (atividade + sono + FC + perfil + dispositivos + histórico de sync com gráfico de bateria %) |
 
 Além disso, a página `/fitbit/connect` fornece a interface para o fluxo OAuth2 de vinculação do Fitbit a um usuário.
 
@@ -150,7 +151,7 @@ Além disso, a página `/fitbit/connect` fornece a interface para o fluxo OAuth2
 | GET | `/users/:id/fitbit/intraday?resource=steps&startDate=...&endDate=...` | Intraday minuto a minuto |
 | GET | `/users/:id/fitbit/profile` | Perfil Fitbit (nome, idade, altura, peso) |
 | GET | `/users/:id/fitbit/devices` | Dispositivos e último sync |
-| GET | `/users/:id/fitbit/sync-history?limit=20` | Histórico de sincronizações |
+| GET | `/users/:id/fitbit/sync-history?limit=20` | Histórico de sincronizações (inclui `batteryLevel` % e `deviceId` por registro) |
 | GET | `/users/:id/fitbit/all?date=YYYY-MM-DD` | Todos os dados do dia (atividade + sono + FC) |
 | POST | `/users/:id/fitbit` | Vincular tokens Fitbit ao usuário |
 | DELETE | `/users/:id/fitbit` | Desconectar Fitbit do usuário |
