@@ -26,6 +26,9 @@ export class SyncHistory {
   syncTime: Date;
 
   @Column({ nullable: true })
+  deviceId: string;
+
+  @Column({ nullable: true })
   deviceName: string;
 
   @Column({ nullable: true })
@@ -33,6 +36,9 @@ export class SyncHistory {
 
   @Column({ nullable: true })
   battery: string;
+
+  @Column({ nullable: true })
+  batteryLevel: number;
 
   @CreateDateColumn()
   createdAt: Date;

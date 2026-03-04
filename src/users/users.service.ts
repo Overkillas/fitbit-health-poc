@@ -506,12 +506,12 @@ export class UsersService {
     for (const device of devices) {
       if (device.lastSyncTime) {
         const syncTime = new Date(device.lastSyncTime);
-        const deviceName = device.deviceVersion || undefined;
+        const deviceId = device.id || undefined;
         const existing = await this.syncHistoryRepository.findOne({
           where: {
             userId,
             syncTime,
-            deviceName,
+            deviceId,
           },
         });
 
@@ -519,9 +519,12 @@ export class UsersService {
           const entry = this.syncHistoryRepository.create({
             userId,
             syncTime,
-            deviceName,
+            deviceId,
+            deviceName: device.deviceVersion || undefined,
             deviceType: device.type || undefined,
             battery: device.battery || undefined,
+            batteryLevel:
+              device.batteryLevel !== undefined ? device.batteryLevel : undefined,
           });
           await this.syncHistoryRepository.save(entry);
         }
