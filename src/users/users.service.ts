@@ -22,6 +22,7 @@ import {
   FitbitIntradayResponse,
   FitbitProfileResponse,
   FitbitDeviceInfo,
+  FitbitCardioScoreResponse,
   WeekDayData,
   WeekDayError,
   UserAllFitbitData,
@@ -452,6 +453,16 @@ export class UsersService {
     );
 
     return results;
+  }
+
+  async getUserCardioScore(
+    userId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<FitbitCardioScoreResponse> {
+    const user = await this.findByIdOrFail(userId);
+    const accessToken = await this.getValidAccessToken(user);
+    return this.fitbitService.getCardioScore(accessToken, startDate, endDate);
   }
 
   async getUserProfile(userId: number): Promise<FitbitProfileResponse> {

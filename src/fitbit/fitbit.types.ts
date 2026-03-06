@@ -191,6 +191,19 @@ export interface UserAllFitbitData {
   error?: string;
 }
 
+export interface FitbitCardioScoreValue {
+  vo2Max: string;
+}
+
+export interface FitbitCardioScoreEntry {
+  dateTime: string;
+  value: FitbitCardioScoreValue;
+}
+
+export interface FitbitCardioScoreResponse {
+  cardioScore: FitbitCardioScoreEntry[];
+}
+
 export interface PatientPollingData {
   patientId: string;
   timestamp: string;

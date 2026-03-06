@@ -80,6 +80,14 @@ export class FitbitIntradayQueryDto {
   endTime?: string;
 }
 
+export class FitbitDateRangeQueryDto {
+  @IsDateString()
+  startDate: string;
+
+  @IsDateString()
+  endDate: string;
+}
+
 export class FitbitHeartRateQueryDto {
   @IsDateString()
   date: string;

@@ -203,6 +203,7 @@
           <button class="tab" onclick="switchDataTab('week', this)">Semana</button>
           <button class="tab" onclick="switchDataTab('profile', this)">Perfil</button>
           <button class="tab" onclick="switchDataTab('devices', this)">Dispositivos</button>
+          <button class="tab" onclick="switchDataTab('cardio-score', this)">VO2 Max</button>
         </div>
         <div id="patientsDataContent"><div class="loading"><div class="spinner"></div><p>Selecione um médico</p></div></div>
       </div>
@@ -450,6 +451,21 @@
           return;
         }
 
+        if (currentDataTab === 'cardio-score') {
+          const patients = await fetch(`${API_BASE}/users/${doctorId}/patients`).then(r => r.json());
+          const withFitbit = patients.filter(p => p.hasFitbitConnected);
+          if (withFitbit.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum paciente com Fitbit</h3></div>'; return; }
+          const endDate = date || new Date().toISOString().split('T')[0];
+          const startDate = new Date(new Date(endDate).setDate(new Date(endDate).getDate() - 30)).toISOString().split('T')[0];
+          const cardioData = {};
+          await Promise.all(withFitbit.map(async p => {
+            cardioData[p.id] = await fetchCardioScore(p.id, startDate, endDate);
+          }));
+          renderCardioScoreData(withFitbit, cardioData, container);
+          makeCollapsible(container);
+          return;
+        }
+
         let endpoint;
         if (currentDataTab === 'profile') {
           endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/profile`;
@@ -479,19 +495,33 @@
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
+    function watchNotWorn(summary) {
+      return (summary.steps || 0) < 10 && (summary.sedentaryMinutes || 0) > 1400;
+    }
+
+    const WATCH_NOT_WORN_BANNER = `
+      <div style="background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:#e65100">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#f57c00"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <span><strong>Relógio não usado neste dia.</strong> As calorias exibidas são estimativa de metabolismo basal (TMB), não dados medidos.</span>
+      </div>`;
+
     function renderActivityData(patientsData, container) {
       container.innerHTML = patientsData.map(patient => {
         const user = allUsers.find(u => u.id === patient.userId);
         const name = user?.name || `Paciente ${patient.userId}`;
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const s = patient.data.summary || {};
-        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">OK</span></div><div class="patient-body"><div class="data-grid">
-          <div class="data-item"><div class="value">${s.steps?.toLocaleString() || 0}</div><div class="label">Passos</div></div>
-          <div class="data-item"><div class="value">${s.caloriesOut?.toLocaleString() || 0}</div><div class="label">Calorias</div></div>
-          <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
-          <div class="data-item"><div class="value">${s.floors || 0}</div><div class="label">Andares</div></div>
-          <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min Ativos</div></div>
-        </div></div></div>`;
+        const notWorn = watchNotWorn(s);
+        return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-${notWorn ? 'disconnected' : 'connected'}">${notWorn ? 'Sem dados' : 'OK'}</span></div><div class="patient-body">
+          ${notWorn ? WATCH_NOT_WORN_BANNER : ''}
+          <div class="data-grid">
+            <div class="data-item"><div class="value">${s.steps?.toLocaleString() || 0}</div><div class="label">Passos</div></div>
+            <div class="data-item"><div class="value" style="${notWorn ? 'color:#bbb' : ''}">${s.caloriesOut?.toLocaleString() || 0}</div><div class="label">Cal. Total${notWorn ? ' (TMB)' : ''}</div></div>
+            <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
+            <div class="data-item"><div class="value">${s.floors || 0}</div><div class="label">Andares</div></div>
+            <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min Ativos</div></div>
+          </div>
+        </div></div>`;
       }).join('');
     }
 
@@ -625,15 +655,18 @@
         if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state"><h3>Nenhum dado encontrado</h3></div>'; return; }
 
         // Busca devices, sync history e profile em paralelo para cada paciente
+        const selectedDate = date || new Date().toISOString().split('T')[0];
+        const cardioStart = new Date(new Date(selectedDate).setDate(new Date(selectedDate).getDate() - 30)).toISOString().split('T')[0];
         const syncData = {};
         await Promise.all(
           data.filter(p => p.userId).map(async (p) => {
-            const [devices, history, profile] = await Promise.all([
+            const [devices, history, profile, cardioScore] = await Promise.all([
               fetchUserDevices(p.userId),
               fetchSyncHistory(p.userId),
               fetchUserProfile(p.userId),
+              fetchCardioScore(p.userId, cardioStart, selectedDate),
             ]);
-            syncData[p.userId] = { devices, history, profile };
+            syncData[p.userId] = { devices, history, profile, cardioScore };
           })
         );
 
@@ -708,6 +741,7 @@
             ` : ''}
 
             <!-- ATIVIDADE COMPLETA -->
+            ${watchNotWorn(summary) ? WATCH_NOT_WORN_BANNER : ''}
             <div class="section-title">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>
               Atividade Completa
@@ -760,6 +794,35 @@
                 `).join('')}
               </div>
             ` : '<p style="color:#666;font-size:13px">Sem dados de zonas cardíacas</p>'}
+
+            <!-- VO2 MAX -->
+            ${(() => {
+              const entries = syncInfo?.cardioScore?.cardioScore || [];
+              const latest = entries.length > 0 ? entries[entries.length - 1] : null;
+              const vo2Str = latest?.value?.vo2Max || null;
+              if (!vo2Str) return '';
+              const cat = getVo2MaxCategory(vo2Str);
+              return `
+                <div class="section-title">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                  VO2 Max (Aptidão Cardiovascular)
+                </div>
+                <div class="data-grid">
+                  <div class="data-item highlight">
+                    <div class="value" style="color:${cat.color}">${vo2Str}</div>
+                    <div class="label">mL/kg/min</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="value" style="color:${cat.color}">${cat.label}</div>
+                    <div class="label">Classificação</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="value" style="font-size:13px">${latest.dateTime}</div>
+                    <div class="label">Última medição</div>
+                  </div>
+                </div>
+              `;
+            })()}
 
             <!-- SONO COMPLETO -->
             <div class="section-title">
@@ -829,6 +892,79 @@
     function formatDateTime(dateStr) {
       if (!dateStr) return '-';
       return new Date(dateStr).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function fetchCardioScore(userId, startDate, endDate) {
+      try {
+        const response = await fetch(`${API_BASE}/users/${userId}/fitbit/cardio-score?startDate=${startDate}&endDate=${endDate}`);
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (e) { return null; }
+    }
+
+    function getVo2MaxCategory(vo2MaxStr) {
+      if (!vo2MaxStr) return { label: '-', color: '#90a4ae' };
+      const val = parseInt(vo2MaxStr.split('-')[0]);
+      if (isNaN(val)) return { label: vo2MaxStr, color: '#90a4ae' };
+      if (val >= 55) return { label: 'Excelente', color: '#388e3c' };
+      if (val >= 45) return { label: 'Bom', color: '#689f38' };
+      if (val >= 35) return { label: 'Regular', color: '#f57c00' };
+      return { label: 'Baixo', color: '#d32f2f' };
+    }
+
+    function renderCardioScoreData(patients, cardioData, container) {
+      container.innerHTML = patients.map(patient => {
+        const result = cardioData[patient.id];
+        const entries = result?.cardioScore || [];
+        const latest = entries.length > 0 ? entries[entries.length - 1] : null;
+        const vo2Str = latest?.value?.vo2Max || null;
+        const category = getVo2MaxCategory(vo2Str);
+
+        return `
+          <div class="patient-data-card">
+            <div class="patient-header">
+              <div><h3>${patient.name}</h3>${renderSyncBadge(patient.id)}</div>
+              <span class="badge badge-connected">VO2 Max</span>
+            </div>
+            <div class="patient-body">
+              ${vo2Str ? `
+                <div class="data-grid" style="margin-bottom:16px">
+                  <div class="data-item highlight">
+                    <div class="value" style="font-size:26px;color:${category.color}">${vo2Str}</div>
+                    <div class="label">mL/kg/min</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="value" style="color:${category.color}">${category.label}</div>
+                    <div class="label">Classificação</div>
+                  </div>
+                  <div class="data-item">
+                    <div class="value">${latest.dateTime}</div>
+                    <div class="label">Última medição</div>
+                  </div>
+                </div>
+              ` : '<p style="color:#999;font-size:13px;margin-bottom:12px">Sem dados de VO2 Max disponíveis para este período.</p>'}
+
+              ${entries.length > 1 ? `
+                <div class="section-title">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+                  Histórico (${entries.length} registros)
+                </div>
+                <div style="max-height:200px;overflow-y:auto">
+                  <table style="font-size:12px">
+                    <thead><tr><th>Data</th><th>VO2 Max (mL/kg/min)</th><th>Classificação</th></tr></thead>
+                    <tbody>
+                      ${[...entries].reverse().map(e => {
+                        const cat = getVo2MaxCategory(e.value?.vo2Max);
+                        return `<tr><td>${e.dateTime}</td><td>${e.value?.vo2Max || '-'}</td><td style="color:${cat.color}">${cat.label}</td></tr>`;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     async function fetchUserDevices(userId) {

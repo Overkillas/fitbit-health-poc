@@ -20,6 +20,7 @@ import {
   FitbitTimeSeriesQueryDto,
   FitbitIntradayQueryDto,
   FitbitHeartRateQueryDto,
+  FitbitDateRangeQueryDto,
   FitbitDetailLevel,
   HeartRateDetailLevel,
 } from './dto/fitbit-query.dto';
@@ -223,6 +224,14 @@ export class UsersController {
       query.startTime,
       query.endTime,
     );
+  }
+
+  @Get(':id/fitbit/cardio-score')
+  async getUserCardioScore(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: FitbitDateRangeQueryDto,
+  ) {
+    return this.usersService.getUserCardioScore(id, query.startDate, query.endDate);
   }
 
   @Get(':id/fitbit/profile')

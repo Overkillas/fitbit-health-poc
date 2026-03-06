@@ -10,6 +10,7 @@ import {
   FitbitProfileResponse,
   FitbitTimeSeriesResponse,
   FitbitIntradayResponse,
+  FitbitCardioScoreResponse,
   WeekDayData,
   WeekDayError,
   PatientPollingData,
@@ -21,7 +22,7 @@ export class FitbitService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
-  private readonly scope = 'activity heartrate sleep profile settings weight';
+  private readonly scope = 'activity heartrate sleep profile settings weight cardio_fitness';
 
   constructor(private configService: ConfigService) {
     this.clientId = this.configService.get<string>('FITBIT_CLIENT_ID')!;
@@ -151,6 +152,18 @@ export class FitbitService {
       'https://api.fitbit.com/1/user/-/devices.json',
       accessToken,
       'fetch devices',
+    );
+  }
+
+  async getCardioScore(
+    accessToken: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<FitbitCardioScoreResponse> {
+    return this.fitbitGet(
+      `https://api.fitbit.com/1/user/-/cardioscore/date/${startDate}/${endDate}.json`,
+      accessToken,
+      'fetch cardio score (VO2 Max)',
     );
   }
 
