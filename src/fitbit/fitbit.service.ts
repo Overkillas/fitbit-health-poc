@@ -36,7 +36,10 @@ export class FitbitService {
   private async fitbitGet<T>(url: string, accessToken: string, context: string): Promise<T> {
     try {
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Accept-Language': 'pt_BR',
+        },
       });
       return response.data as T;
     } catch (error) {

@@ -565,8 +565,8 @@
           <div class="data-item"><div class="value">${p.gender || '-'}</div><div class="label">Gênero</div></div>
           <div class="data-item"><div class="value">${p.height ? p.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
           <div class="data-item"><div class="value">${p.weight ? p.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
-          <div class="data-item"><div class="value">${p.strideLengthWalking ? (p.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
-          <div class="data-item"><div class="value">${p.strideLengthRunning ? (p.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthWalking ? p.strideLengthWalking.toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+          <div class="data-item"><div class="value">${p.strideLengthRunning ? p.strideLengthRunning.toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
         </div>
         <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
           <strong>Data de Nasc.:</strong> ${p.dateOfBirth || '-'} &nbsp;|&nbsp;
@@ -656,15 +656,32 @@
 
         // Busca devices, sync history e profile em paralelo para cada paciente
         const selectedDate = date || new Date().toISOString().split('T')[0];
-        const cardioStart = new Date(new Date(selectedDate).setDate(new Date(selectedDate).getDate() - 30)).toISOString().split('T')[0];
         const syncData = {};
         await Promise.all(
           data.filter(p => p.userId).map(async (p) => {
-            const [devices, history, profile, cardioScore] = await Promise.all([
-              fetchUserDevices(p.userId),
+            const devices = await fetchUserDevices(p.userId);
+
+            const lastSyncTime = (devices || []).reduce((latest, d) => {
+              if (!d.lastSyncTime) return latest;
+              return !latest || new Date(d.lastSyncTime) > new Date(latest) ? d.lastSyncTime : latest;
+            }, null);
+            const toDate = d => d.toISOString().split('T')[0];
+            const sel = new Date(selectedDate);
+            let cardioEnd, cardioStart;
+            if (lastSyncTime && (sel - new Date(lastSyncTime)) / 86400000 > 30) {
+              // sync muito antigo: janela de 30 dias terminando no dia do último sync
+              const syncDate = new Date(lastSyncTime);
+              cardioEnd = toDate(syncDate);
+              cardioStart = toDate(new Date(syncDate.getTime() - 30 * 86400000));
+            } else {
+              cardioEnd = toDate(sel);
+              cardioStart = toDate(new Date(sel.getTime() - 30 * 86400000));
+            }
+
+            const [history, profile, cardioScore] = await Promise.all([
               fetchSyncHistory(p.userId),
               fetchUserProfile(p.userId),
-              fetchCardioScore(p.userId, cardioStart, selectedDate),
+              fetchCardioScore(p.userId, cardioStart, cardioEnd),
             ]);
             syncData[p.userId] = { devices, history, profile, cardioScore };
           })
@@ -730,8 +747,8 @@
                 <div class="data-item"><div class="value">${profile.gender || '-'}</div><div class="label">Gênero</div></div>
                 <div class="data-item"><div class="value">${profile.height ? profile.height + ' cm' : '-'}</div><div class="label">Altura</div></div>
                 <div class="data-item"><div class="value">${profile.weight ? profile.weight + ' kg' : '-'}</div><div class="label">Peso</div></div>
-                <div class="data-item"><div class="value">${profile.strideLengthWalking ? (profile.strideLengthWalking * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
-                <div class="data-item"><div class="value">${profile.strideLengthRunning ? (profile.strideLengthRunning * 100).toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthWalking ? profile.strideLengthWalking.toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (caminhada)</div></div>
+                <div class="data-item"><div class="value">${profile.strideLengthRunning ? profile.strideLengthRunning.toFixed(1) + ' cm' : '-'}</div><div class="label">Passo (corrida)</div></div>
               </div>
               <div style="margin-top:12px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
                 <strong>Data de Nasc.:</strong> ${profile.dateOfBirth || '-'} &nbsp;|&nbsp;
@@ -769,7 +786,7 @@
             <div class="data-grid">
               <div class="data-item"><div class="value">${goals.steps?.toLocaleString() || '-'}</div><div class="label">Meta Passos</div></div>
               <div class="data-item"><div class="value">${goals.caloriesOut?.toLocaleString() || '-'}</div><div class="label">Meta Calorias</div></div>
-              <div class="data-item"><div class="value">${goals.distance || '-'} km</div><div class="label">Meta Distância</div></div>
+              <div class="data-item"><div class="value">${goals.distance != null ? (goals.distance / 1000000).toFixed(2) + ' km' : '-'}</div><div class="label">Meta Distância</div></div>
               <div class="data-item"><div class="value">${goals.floors || '-'}</div><div class="label">Meta Andares</div></div>
               <div class="data-item"><div class="value">${goals.activeMinutes || '-'}</div><div class="label">Meta Min. Ativos</div></div>
             </div>
