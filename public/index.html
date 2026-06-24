@@ -244,7 +244,7 @@
   </main>
 
   <script>
-    const API_BASE = window.location.origin;
+    const API_BASE = window.location.origin + window.location.pathname.replace(/\/$/, '');
     let allUsers = [];
     let currentDataTab = 'activity';
     const deviceSyncCache = {}; // userId -> { lastSyncTime, devices }
