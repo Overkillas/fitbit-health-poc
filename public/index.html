@@ -1341,7 +1341,7 @@
 
       try {
         const response = await fetch(`${API_BASE}/users/${id}`, {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         });
