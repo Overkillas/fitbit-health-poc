@@ -23,17 +23,13 @@ services:
       dockerfile: Dockerfile
     container_name: fitbit-api
     restart: unless-stopped
-    ports:
-      - "${PORT:-3003}:3003"
+    env_file:
+      - .env
     environment:
-      PORT: 3003
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME}
-      FITBIT_CLIENT_ID: ${FITBIT_CLIENT_ID}
-      FITBIT_CLIENT_SECRET: ${FITBIT_CLIENT_SECRET}
+    ports:
+      - "${PORT:-3003}:${PORT:-3003}"
     depends_on:
       postgres:
         condition: service_healthy
