@@ -111,6 +111,12 @@
     .patient-header.clickable:hover { filter: brightness(1.1); }
     .patient-header .chevron { width: 20px; height: 20px; transition: transform 0.3s; flex-shrink: 0; }
     .patient-header.collapsed .chevron { transform: rotate(-90deg); }
+
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center; }
+    .modal { background:white; border-radius:12px; padding:32px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+    .modal h2 { color:#333; margin-bottom:20px; font-size:20px; border-bottom:2px solid #667eea; padding-bottom:10px; }
+    .modal-footer { display:flex; gap:12px; justify-content:flex-end; margin-top:20px; }
+    .btn-secondary { background:#6c757d; color:white; }
   </style>
 </head>
 <body>
@@ -243,6 +249,40 @@
     </div>
   </main>
 
+  <div id="editModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <h2>Editar Usuário</h2>
+      <form id="editUserForm" onsubmit="saveUser(event)">
+        <input type="hidden" id="editUserId">
+        <div class="form-row">
+          <div class="form-group"><label>Nome</label><input type="text" id="editName" required></div>
+          <div class="form-group"><label>Email</label><input type="email" id="editEmail" required></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Telefone</label><input type="text" id="editPhone" required></div>
+          <div class="form-group"><label>Nova Senha <span style="font-weight:400;color:#999">(opcional)</span></label><input type="password" id="editPassword" minlength="6" placeholder="Deixe vazio para não alterar"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="editRole" required onchange="toggleEditDoctorSelect()">
+              <option value="DOCTOR">Médico</option>
+              <option value="PATIENT">Paciente</option>
+            </select>
+          </div>
+          <div class="form-group" id="editDoctorSelectGroup" style="display:none">
+            <label>Médico Responsável</label>
+            <select id="editDoctorId"><option value="">Sem médico</option></select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const API_BASE = window.location.origin + window.location.pathname.replace(/\/$/, '');
     let allUsers = [];
@@ -355,6 +395,7 @@
             <td>${user.doctor ? user.doctor.name : '-'}</td>
             <td><span class="badge badge-${user.hasFitbitConnected ? 'connected' : 'disconnected'}">${user.hasFitbitConnected ? 'Sim' : 'Não'}</span></td>
             <td class="actions">
+              <button class="btn btn-primary btn-sm" onclick="openEditModal(${user.id})">Editar</button>
               <button class="btn btn-success btn-sm" onclick="connectFitbit(${user.id})">Fitbit</button>
               <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})">Excluir</button>
             </td>
@@ -1252,6 +1293,64 @@
       alert.className = `alert alert-${type}`;
       alert.style.display = 'block';
       setTimeout(() => { alert.style.display = 'none'; }, 5000);
+    }
+
+    // ===== Edit Modal =====
+    function openEditModal(userId) {
+      const user = allUsers.find(u => u.id === userId);
+      if (!user) return;
+
+      document.getElementById('editUserId').value = user.id;
+      document.getElementById('editName').value = user.name;
+      document.getElementById('editEmail').value = user.email;
+      document.getElementById('editPhone').value = user.phone;
+      document.getElementById('editPassword').value = '';
+      document.getElementById('editRole').value = user.role;
+
+      const doctors = allUsers.filter(u => u.role === 'DOCTOR');
+      document.getElementById('editDoctorId').innerHTML =
+        '<option value="">Sem médico</option>' +
+        doctors.map(d => `<option value="${d.id}" ${user.doctor?.id === d.id ? 'selected' : ''}>${d.name}</option>`).join('');
+
+      toggleEditDoctorSelect();
+      document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+
+    function toggleEditDoctorSelect() {
+      document.getElementById('editDoctorSelectGroup').style.display =
+        document.getElementById('editRole').value === 'PATIENT' ? 'block' : 'none';
+    }
+
+    async function saveUser(event) {
+      event.preventDefault();
+      const id = document.getElementById('editUserId').value;
+      const data = {
+        name: document.getElementById('editName').value,
+        email: document.getElementById('editEmail').value,
+        phone: document.getElementById('editPhone').value,
+        role: document.getElementById('editRole').value,
+      };
+      const password = document.getElementById('editPassword').value;
+      if (password) data.password = password;
+      const doctorId = document.getElementById('editDoctorId').value;
+      if (doctorId && data.role === 'PATIENT') data.doctorId = parseInt(doctorId);
+
+      try {
+        const response = await fetch(`${API_BASE}/users/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) { const error = await response.json(); throw new Error(error.message); }
+        showAlert('Usuário atualizado!', 'success');
+        closeEditModal();
+        await loadUsers();
+        await loadDoctorsSelect();
+      } catch (error) { showAlert('Erro: ' + error.message, 'error'); }
     }
 
     document.addEventListener('DOMContentLoaded', () => { loadDashboard(); });
