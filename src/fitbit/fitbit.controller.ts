@@ -10,11 +10,12 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
   Sse,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { FitbitService } from './fitbit.service';
 import { FitbitWebhookNotification, PatientPollingData } from './fitbit.types';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -72,6 +73,7 @@ export class FitbitController {
   async handleCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     if (!code) {
@@ -79,6 +81,9 @@ export class FitbitController {
         .status(400)
         .json({ error: 'Authorization code not provided' });
     }
+
+    const rawPrefix = req.headers['x-forwarded-prefix'] as string | undefined;
+    const prefix = rawPrefix ? rawPrefix.replace(/\/$/, '') : '';
 
     try {
       const tokens = await this.fitbitService.exchangeCodeForTokens(code);
@@ -98,7 +103,7 @@ export class FitbitController {
           });
 
           // Redirect to success page
-          return res.redirect(`/fitbit/connect?success=true&userId=${userId}`);
+          return res.redirect(`${prefix}/fitbit/connect?success=true&userId=${userId}`);
         }
       }
 
@@ -114,7 +119,7 @@ export class FitbitController {
       const message = error instanceof Error ? error.message : String(error);
       if (state) {
         return res.redirect(
-          `/fitbit/connect?success=false&error=${encodeURIComponent(message)}`,
+          `${prefix}/fitbit/connect?success=false&error=${encodeURIComponent(message)}`,
         );
       }
       res.status(500).json({
