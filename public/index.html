@@ -896,15 +896,18 @@
               <div class="data-item"><div class="value">${sleepData.minutesAfterWakeup || '-'}</div><div class="label">Min. Após Acordar</div></div>
             </div>
 
-            ${Object.keys(sleepLevels).length > 0 ? `
+            ${Object.keys(sleepLevels).length > 0 ? (() => {
+              const totalStageMins = (sleepLevels.deep?.minutes||0) + (sleepLevels.light?.minutes||0) + (sleepLevels.rem?.minutes||0) + (sleepLevels.wake?.minutes||0);
+              const pct = (mins) => totalStageMins > 0 ? Math.round(mins / totalStageMins * 100) : 0;
+              return `
               <h3 style="margin:20px 0 12px;font-size:14px;color:#555">Estágios do Sono</h3>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
-                ${sleepLevels.deep ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#3f51b5"></div><span class="sleep-stage-name">Sono Profundo</span><span class="sleep-stage-value">${sleepLevels.deep.minutes} min</span></div>` : ''}
-                ${sleepLevels.light ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#2196f3"></div><span class="sleep-stage-name">Sono Leve</span><span class="sleep-stage-value">${sleepLevels.light.minutes} min</span></div>` : ''}
-                ${sleepLevels.rem ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#9c27b0"></div><span class="sleep-stage-name">Sono REM</span><span class="sleep-stage-value">${sleepLevels.rem.minutes} min</span></div>` : ''}
-                ${sleepLevels.wake ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#ff9800"></div><span class="sleep-stage-name">Acordado</span><span class="sleep-stage-value">${sleepLevels.wake.minutes} min</span></div>` : ''}
-              </div>
-            ` : ''}
+                ${sleepLevels.deep ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#3f51b5"></div><span class="sleep-stage-name">Sono Profundo</span><span class="sleep-stage-value">${sleepLevels.deep.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(sleepLevels.deep.minutes)}%</span></span></div>` : ''}
+                ${sleepLevels.light ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#2196f3"></div><span class="sleep-stage-name">Sono Leve</span><span class="sleep-stage-value">${sleepLevels.light.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(sleepLevels.light.minutes)}%</span></span></div>` : ''}
+                ${sleepLevels.rem ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#9c27b0"></div><span class="sleep-stage-name">Sono REM</span><span class="sleep-stage-value">${sleepLevels.rem.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(sleepLevels.rem.minutes)}%</span></span></div>` : ''}
+                ${sleepLevels.wake ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#ff9800"></div><span class="sleep-stage-name">Acordado</span><span class="sleep-stage-value">${sleepLevels.wake.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(sleepLevels.wake.minutes)}%</span></span></div>` : ''}
+              </div>`;
+            })() : ''}
 
             ${sleepData.startTime ? `
               <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
