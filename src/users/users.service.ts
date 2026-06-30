@@ -518,15 +518,21 @@ export class UsersService {
       if (device.lastSyncTime) {
         const syncTime = new Date(device.lastSyncTime);
         const deviceId = device.id || undefined;
-        const existing = await this.syncHistoryRepository.findOne({
-          where: {
-            userId,
-            syncTime,
-            deviceId,
-          },
+
+        const lastEntry = await this.syncHistoryRepository.findOne({
+          where: { userId, deviceId },
+          order: { syncTime: 'DESC' },
         });
 
-        if (!existing) {
+        const MIN_INTERVAL_MS = 30 * 60 * 1000;
+        const isNewSync = !lastEntry || syncTime.getTime() > lastEntry.syncTime.getTime();
+        const passedMinInterval = !lastEntry || (syncTime.getTime() - lastEntry.syncTime.getTime()) >= MIN_INTERVAL_MS;
+        const batteryDrop = (lastEntry?.batteryLevel != null && device.batteryLevel != null)
+          ? lastEntry.batteryLevel - device.batteryLevel
+          : 0;
+        const significantBatteryDrop = batteryDrop >= 5;
+
+        if (isNewSync && (passedMinInterval || significantBatteryDrop)) {
           const entry = this.syncHistoryRepository.create({
             userId,
             syncTime,
