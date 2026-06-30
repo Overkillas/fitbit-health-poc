@@ -938,7 +938,7 @@
                   ${Object.keys(lvls).length > 0 ? (() => {
                     const stageRow = (color, name, stage) => {
                       if (!stage) return '';
-                      const diff = (r.isMainSleep && stage.thirtyDayAvgMinutes != null) ? stage.minutes - stage.thirtyDayAvgMinutes : null;
+                      const diff = (r.isMainSleep && stage.thirtyDayAvgMinutes != null && stage.thirtyDayAvgMinutes > 0) ? stage.minutes - stage.thirtyDayAvgMinutes : null;
                       const diffStr = diff != null
                         ? `<span style="font-size:11px;color:${diff >= 0 ? '#388e3c' : '#d32f2f'};margin-left:6px">${diff >= 0 ? '+' : ''}${diff} vs média 30d</span>`
                         : '';
