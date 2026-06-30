@@ -1073,6 +1073,19 @@
         ctx.closePath();
       }
 
+      // Linhas verticais de transição entre estágios
+      const totalTracksH = tracks.length * (LABEL_H + TRACK_H + GAP) - GAP;
+      ctx.strokeStyle = 'rgba(100,100,120,0.2)';
+      ctx.lineWidth = 1;
+      record.data.forEach(seg => {
+        const x = Math.round(toX(new Date(seg.dateTime).getTime())) + 0.5;
+        const yTop = LABEL_H;
+        ctx.beginPath();
+        ctx.moveTo(x, yTop);
+        ctx.lineTo(x, totalTracksH);
+        ctx.stroke();
+      });
+
       const hitAreas = [];
 
       tracks.forEach((track, ti) => {
