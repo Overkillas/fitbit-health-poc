@@ -135,11 +135,13 @@ export class FitbitService {
     date?: string,
   ): Promise<FitbitSleepResponse> {
     const targetDate = date || new Date().toISOString().split('T')[0];
-    return this.fitbitGet(
+    const result = await this.fitbitGet<FitbitSleepResponse>(
       `https://api.fitbit.com/1.2/user/-/sleep/date/${targetDate}.json`,
       accessToken,
       'fetch sleep data',
     );
+    this.logger.debug('SLEEP RAW sleep[0]: ' + JSON.stringify(result.sleep?.[0], null, 2));
+    return result;
   }
 
   async getUserProfile(accessToken: string): Promise<FitbitProfileResponse> {
