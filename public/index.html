@@ -1126,7 +1126,7 @@
         const x      = Math.round(toX(new Date(curr.dateTime).getTime())) + 0.5;
         const minTi  = Math.min(fromTi, toTi);
         const maxTi  = Math.max(fromTi, toTi);
-        ctx.strokeStyle = tracks[toTi].color + 'aa';
+        ctx.strokeStyle = tracks[fromTi].color + 'aa';
         for (let ti = minTi; ti < maxTi; ti++) {
           const yBottom = ti * (LABEL_H + TRACK_H + GAP) + LABEL_H + TRACK_H;
           const yTop    = (ti + 1) * (LABEL_H + TRACK_H + GAP) + LABEL_H;
@@ -1188,7 +1188,13 @@
       });
       const panel = document.getElementById(`sleep-panel-${patientId}-${idx}`);
       const tab = document.getElementById(`sleep-tab-${patientId}-${idx}`);
-      if (panel) panel.style.display = 'block';
+      if (panel) {
+        panel.style.display = 'block';
+        // re-renderiza canvases que estavam ocultos (clientWidth=0) quando initSleepTimelines rodou
+        panel.querySelectorAll('canvas[data-sleep]').forEach(c => {
+          if (!c.width) renderSleepTimeline(c);
+        });
+      }
       if (tab) { tab.style.background = '#667eea'; tab.style.color = 'white'; }
     }
 
