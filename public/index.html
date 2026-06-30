@@ -897,20 +897,18 @@
               <div class="data-item"><div class="value">${sleepSummary.totalSleepRecords || 0}</div><div class="label">Registros</div></div>
             </div>
 
-            <!-- Seletor de registros (só aparece quando há mais de um) -->
-            ${sleepRecords.length > 1 ? `
-              <div style="display:flex;gap:8px;margin:16px 0 8px;flex-wrap:wrap;align-items:center">
-                <span style="font-size:12px;color:#666;font-weight:600">Ver registro:</span>
-                ${sleepRecords.map((r, i) => `
-                  <button
-                    id="sleep-tab-${patient.userId}-${i}"
-                    onclick="selectSleepRecord('${patient.userId}', ${i})"
-                    style="padding:5px 14px;border-radius:20px;border:2px solid #667eea;background:${i===sleepDefaultIdx?'#667eea':'white'};color:${i===sleepDefaultIdx?'white':'#667eea'};font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">
-                    ${r.isMainSleep ? '★ Sono Principal' : `◌ Cochilo ${i+1}`}
-                  </button>
-                `).join('')}
-              </div>
-            ` : ''}
+            <!-- Seletor de registros -->
+            <div style="display:flex;gap:8px;margin:16px 0 8px;flex-wrap:wrap;align-items:center">
+              <span style="font-size:12px;color:#666;font-weight:600">Ver registro:</span>
+              ${sleepRecords.map((r, i) => `
+                <button
+                  id="sleep-tab-${patient.userId}-${i}"
+                  onclick="selectSleepRecord('${patient.userId}', ${i})"
+                  style="padding:5px 14px;border-radius:20px;border:2px solid #667eea;background:${i===sleepDefaultIdx?'#667eea':'white'};color:${i===sleepDefaultIdx?'white':'#667eea'};font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">
+                  ${r.isMainSleep ? '★ Sono Principal' : `◌ Cochilo ${i+1}`}
+                </button>
+              `).join('')}
+            </div>
 
             <!-- Painéis por registro -->
             ${sleepRecords.map((r, i) => {
@@ -940,7 +938,7 @@
                   ${Object.keys(lvls).length > 0 ? (() => {
                     const stageRow = (color, name, stage) => {
                       if (!stage) return '';
-                      const diff = stage.thirtyDayAvgMinutes != null ? stage.minutes - stage.thirtyDayAvgMinutes : null;
+                      const diff = (r.isMainSleep && stage.thirtyDayAvgMinutes != null) ? stage.minutes - stage.thirtyDayAvgMinutes : null;
                       const diffStr = diff != null
                         ? `<span style="font-size:11px;color:${diff >= 0 ? '#388e3c' : '#d32f2f'};margin-left:6px">${diff >= 0 ? '+' : ''}${diff} vs média 30d</span>`
                         : '';
