@@ -1073,30 +1073,9 @@
         ctx.closePath();
       }
 
-      // Linhas verticais nos gaps entre faixas (coloridas pelo estágio que origina a transição)
       const MIN_SEG_PX = 8;
-      const levelColor = { wake: '#ef5350', rem: '#9c27b0', light: '#2196f3', deep: '#3f51b5' };
-      const transitions = [];
-      record.data.forEach(seg => {
-        const w = toW(seg.seconds * 1000);
-        if (w >= MIN_SEG_PX) transitions.push({
-          x: Math.round(toX(new Date(seg.dateTime).getTime())),
-          color: levelColor[seg.level] || 'rgba(100,100,120,0.25)',
-        });
-      });
-
-      ctx.lineWidth = 1;
-      transitions.forEach(({ x, color }) => {
-        ctx.strokeStyle = color + '55'; // 33% opacidade
-        for (let ti = 0; ti < tracks.length - 1; ti++) {
-          const yBottom = ti * (LABEL_H + TRACK_H + GAP) + LABEL_H + TRACK_H;
-          const yTop    = (ti + 1) * (LABEL_H + TRACK_H + GAP) + LABEL_H;
-          ctx.beginPath();
-          ctx.moveTo(x + 0.5, yBottom);
-          ctx.lineTo(x + 0.5, yTop);
-          ctx.stroke();
-        }
-      });
+      // índice de cada nível em levels.data dentro da lista de faixas
+      const levelToTi = { wake: 0, rem: 2, light: 3, deep: 4 };
 
       const hitAreas = [];
 
@@ -1135,6 +1114,29 @@
         });
       });
 
+      // Linhas de transição nos gaps entre as faixas envolvidas (desenhadas após backgrounds)
+      ctx.lineWidth = 1;
+      for (let i = 1; i < record.data.length; i++) {
+        const prev = record.data[i - 1];
+        const curr = record.data[i];
+        if (toW(curr.seconds * 1000) < MIN_SEG_PX) continue;
+        const fromTi = levelToTi[prev.level];
+        const toTi   = levelToTi[curr.level];
+        if (fromTi == null || toTi == null || fromTi === toTi) continue;
+        const x      = Math.round(toX(new Date(curr.dateTime).getTime())) + 0.5;
+        const minTi  = Math.min(fromTi, toTi);
+        const maxTi  = Math.max(fromTi, toTi);
+        ctx.strokeStyle = tracks[toTi].color + 'aa';
+        for (let ti = minTi; ti < maxTi; ti++) {
+          const yBottom = ti * (LABEL_H + TRACK_H + GAP) + LABEL_H + TRACK_H;
+          const yTop    = (ti + 1) * (LABEL_H + TRACK_H + GAP) + LABEL_H;
+          ctx.beginPath();
+          ctx.moveTo(x, yBottom);
+          ctx.lineTo(x, yTop);
+          ctx.stroke();
+        }
+      }
+
       // Time axis
       const axisY = tracks.length * (LABEL_H + TRACK_H + GAP) + 16;
       const fmtTime = ms => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -1161,9 +1163,10 @@
         const hit = hitAreas.find(a => mx >= a.x && mx <= a.x + a.w && my >= a.y && my <= a.y + a.h);
         if (hit) {
           tooltip.style.display = 'block';
-          tooltip.style.left = (mx + 12) + 'px';
-          tooltip.style.top  = (my - 32) + 'px';
           tooltip.innerHTML = `<span style="color:${hit.color}">■</span> ${hit.label}: <strong>${fmtSec(hit.seconds)}</strong>`;
+          const tipW = tooltip.offsetWidth || 160;
+          tooltip.style.left = (mx + 12 + tipW > cssW ? mx - tipW - 8 : mx + 12) + 'px';
+          tooltip.style.top  = Math.max(0, my - 32) + 'px';
           canvas.style.cursor = 'crosshair';
         } else {
           tooltip.style.display = 'none';
