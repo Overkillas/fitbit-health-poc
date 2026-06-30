@@ -1073,17 +1073,29 @@
         ctx.closePath();
       }
 
-      // Linhas verticais de transição entre estágios
-      const totalTracksH = tracks.length * (LABEL_H + TRACK_H + GAP) - GAP;
-      ctx.strokeStyle = 'rgba(100,100,120,0.2)';
-      ctx.lineWidth = 1;
+      // Linhas verticais nos gaps entre faixas (coloridas pelo estágio que origina a transição)
+      const MIN_SEG_PX = 8;
+      const levelColor = { wake: '#ef5350', rem: '#9c27b0', light: '#2196f3', deep: '#3f51b5' };
+      const transitions = [];
       record.data.forEach(seg => {
-        const x = Math.round(toX(new Date(seg.dateTime).getTime())) + 0.5;
-        const yTop = LABEL_H;
-        ctx.beginPath();
-        ctx.moveTo(x, yTop);
-        ctx.lineTo(x, totalTracksH);
-        ctx.stroke();
+        const w = toW(seg.seconds * 1000);
+        if (w >= MIN_SEG_PX) transitions.push({
+          x: Math.round(toX(new Date(seg.dateTime).getTime())),
+          color: levelColor[seg.level] || 'rgba(100,100,120,0.25)',
+        });
+      });
+
+      ctx.lineWidth = 1;
+      transitions.forEach(({ x, color }) => {
+        ctx.strokeStyle = color + '55'; // 33% opacidade
+        for (let ti = 0; ti < tracks.length - 1; ti++) {
+          const yBottom = ti * (LABEL_H + TRACK_H + GAP) + LABEL_H + TRACK_H;
+          const yTop    = (ti + 1) * (LABEL_H + TRACK_H + GAP) + LABEL_H;
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, yBottom);
+          ctx.lineTo(x + 0.5, yTop);
+          ctx.stroke();
+        }
       });
 
       const hitAreas = [];
