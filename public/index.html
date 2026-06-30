@@ -917,7 +917,10 @@
               const lvls = r.levels?.summary || {};
               const totalStageMins = (lvls.deep?.minutes||0) + (lvls.light?.minutes||0) + (lvls.rem?.minutes||0) + (lvls.wake?.minutes||0);
               const pct = (mins) => totalStageMins > 0 ? Math.round(mins / totalStageMins * 100) : 0;
-              const despertarMin = r.minutesAwake ?? '-';
+              const firstEntry = r.levels?.data?.[0];
+              const latencyMin = (firstEntry?.level === 'wake') ? Math.round(firstEntry.seconds / 60) : 0;
+              const shortWakeSec = (r.levels?.shortData || []).reduce((s, d) => d.level === 'wake' ? s + d.seconds : s, 0);
+              const despertarMin = Math.round(shortWakeSec / 60) || null;
               const recordAsleep = r.minutesAsleep || 0;
               const recordInBed = r.timeInBed || 0;
               return `
@@ -931,19 +934,36 @@
                     <div class="data-item highlight"><div class="value">${Math.floor(recordAsleep/60)}h ${recordAsleep%60}m</div><div class="label">Dormindo</div></div>
                     <div class="data-item"><div class="value">${Math.floor(recordInBed/60)}h ${recordInBed%60}m</div><div class="label">Na Cama</div></div>
                     <div class="data-item"><div class="value">${r.efficiency || '-'}%</div><div class="label">Eficiência</div></div>
-                    <div class="data-item"><div class="value">${despertarMin !== '-' ? despertarMin + ' min' : '-'}</div><div class="label">Despertar Noturno</div></div>
-                    ${r.minutesToFallAsleep > 0 ? `<div class="data-item"><div class="value">${r.minutesToFallAsleep} min</div><div class="label">Latência do Sono</div></div>` : ''}
+                    <div class="data-item"><div class="value">${despertarMin != null ? despertarMin + ' min' : '-'}</div><div class="label">Despertar Noturno</div></div>
+                    ${latencyMin > 0 ? `<div class="data-item"><div class="value">${latencyMin} min</div><div class="label">Latência do Sono</div></div>` : ''}
                   </div>
-                  ${Object.keys(lvls).length > 0 ? `
-                    <h3 style="margin:20px 0 12px;font-size:14px;color:#555">Estágios do Sono</h3>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
-                      ${lvls.deep ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#3f51b5"></div><span class="sleep-stage-name">Sono Profundo</span><span class="sleep-stage-value">${lvls.deep.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(lvls.deep.minutes)}%</span></span></div>` : ''}
-                      ${lvls.light ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#2196f3"></div><span class="sleep-stage-name">Sono Leve</span><span class="sleep-stage-value">${lvls.light.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(lvls.light.minutes)}%</span></span></div>` : ''}
-                      ${lvls.rem ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#9c27b0"></div><span class="sleep-stage-name">Sono REM</span><span class="sleep-stage-value">${lvls.rem.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(lvls.rem.minutes)}%</span></span></div>` : ''}
-                      ${lvls.wake ? `<div class="sleep-stage"><div class="sleep-stage-color" style="background:#ff9800"></div><span class="sleep-stage-name">Acordado</span><span class="sleep-stage-value">${lvls.wake.minutes} min <span style="font-weight:400;color:#888;font-size:12px">· ${pct(lvls.wake.minutes)}%</span></span></div>` : ''}
-                    </div>
-                  ` : ''}
-                  ${r.startTime && sleepRecords.length === 1 ? `
+                  ${Object.keys(lvls).length > 0 ? (() => {
+                    const stageRow = (color, name, stage) => {
+                      if (!stage) return '';
+                      const diff = stage.thirtyDayAvgMinutes != null ? stage.minutes - stage.thirtyDayAvgMinutes : null;
+                      const diffStr = diff != null
+                        ? `<span style="font-size:11px;color:${diff >= 0 ? '#388e3c' : '#d32f2f'};margin-left:6px">${diff >= 0 ? '+' : ''}${diff} vs média 30d</span>`
+                        : '';
+                      return `<div class="sleep-stage">
+                        <div class="sleep-stage-color" style="background:${color}"></div>
+                        <span class="sleep-stage-name">${name}</span>
+                        <span class="sleep-stage-value">
+                          ${stage.minutes} min
+                          <span style="font-weight:400;color:#888;font-size:12px">· ${pct(stage.minutes)}%</span>
+                          ${diffStr}
+                        </span>
+                      </div>`;
+                    };
+                    return `
+                      <h3 style="margin:20px 0 12px;font-size:14px;color:#555">Estágios do Sono</h3>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+                        ${stageRow('#3f51b5', 'Sono Profundo', lvls.deep)}
+                        ${stageRow('#2196f3', 'Sono Leve', lvls.light)}
+                        ${stageRow('#9c27b0', 'Sono REM', lvls.rem)}
+                        ${stageRow('#ff9800', 'Acordado', lvls.wake)}
+                      </div>`;
+                  })() : ''}
+                  ${r.startTime ? `
                     <div style="margin-top:16px;padding:12px;background:#f8f9fa;border-radius:8px;font-size:13px">
                       <strong>Período:</strong> ${formatDateTime(r.startTime)} → ${formatDateTime(r.endTime)}
                     </div>

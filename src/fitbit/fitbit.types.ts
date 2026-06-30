@@ -64,11 +64,13 @@ export interface FitbitSleepLog {
   timeInBed: number;
   type: string;
   levels?: {
+    data: Array<{ dateTime: string; level: string; seconds: number }>;
+    shortData: Array<{ dateTime: string; level: string; seconds: number }>;
     summary: {
-      deep?: { count: number; minutes: number };
-      light?: { count: number; minutes: number };
-      rem?: { count: number; minutes: number };
-      wake?: { count: number; minutes: number };
+      deep?: { count: number; minutes: number; thirtyDayAvgMinutes: number };
+      light?: { count: number; minutes: number; thirtyDayAvgMinutes: number };
+      rem?: { count: number; minutes: number; thirtyDayAvgMinutes: number };
+      wake?: { count: number; minutes: number; thirtyDayAvgMinutes: number };
     };
   };
 }
