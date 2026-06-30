@@ -731,6 +731,7 @@
         container.innerHTML = data.map(patient => renderFullPatientData(patient, syncData[patient.userId])).join('');
         makeCollapsible(container);
         initSyncCharts(container);
+        initSleepTimelines(container);
       } catch (error) { container.innerHTML = `<div class="empty-state"><p>Erro: ${error.message}</p></div>`; }
     }
 
@@ -966,6 +967,18 @@
                       <strong>Período:</strong> ${formatDateTime(r.startTime)} → ${formatDateTime(r.endTime)}
                     </div>
                   ` : ''}
+                  ${r.levels?.data?.length > 0 ? `
+                    <div style="margin-top:20px">
+                      <h3 style="margin-bottom:12px;font-size:14px;color:#555">Timeline do Sono</h3>
+                      <div style="position:relative">
+                        <canvas
+                          id="sleep-tl-${patient.userId}-${i}"
+                          data-sleep='${JSON.stringify({ startTime: r.startTime, endTime: r.endTime, data: r.levels.data, shortData: r.levels.shortData || [] })}'
+                          style="display:block;width:100%">
+                        </canvas>
+                      </div>
+                    </div>
+                  ` : ''}
                 </div>
               `;
             }).join('')}
@@ -994,6 +1007,149 @@
           </div>
         </div>
       `;
+    }
+
+    function renderSleepTimeline(canvas) {
+      const raw = canvas.dataset.sleep;
+      if (!raw) return;
+      const record = JSON.parse(raw);
+
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.parentElement.clientWidth;
+
+      const LABEL_H = 20;
+      const TRACK_H = 36;
+      const GAP = 10;
+      const BOTTOM_H = 28;
+
+      const tracks = [
+        { key: 'wake_long',  label: 'Total acordado',    color: '#ef5350' },
+        { key: 'wake_short', label: 'Despertar noturno', color: '#66bb6a' },
+        { key: 'rem',        label: 'REM',               color: '#9c27b0' },
+        { key: 'light',      label: 'Leve',              color: '#2196f3' },
+        { key: 'deep',       label: 'Profundo',          color: '#3f51b5' },
+      ];
+
+      const cssH = tracks.length * (LABEL_H + TRACK_H + GAP) + BOTTOM_H;
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      canvas.width = cssW * dpr;
+      canvas.height = cssH * dpr;
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const sleepStart = new Date(record.startTime).getTime();
+      const sleepEnd   = new Date(record.endTime).getTime();
+      const totalMs    = sleepEnd - sleepStart;
+
+      const toX = ms => ((ms - sleepStart) / totalMs) * cssW;
+      const toW = ms => (ms / totalMs) * cssW;
+
+      const segFor = {
+        wake_long:  record.data.filter(d => d.level === 'wake'),
+        wake_short: record.shortData.filter(d => d.level === 'wake'),
+        rem:        record.data.filter(d => d.level === 'rem'),
+        light:      record.data.filter(d => d.level === 'light'),
+        deep:       record.data.filter(d => d.level === 'deep'),
+      };
+
+      function fmtSec(s) {
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+        if (h > 0) return `${h}h ${m}min`;
+        if (m > 0) return sec > 0 ? `${m}min ${sec}s` : `${m}min`;
+        return `${sec}s`;
+      }
+
+      function roundRect(x, y, w, h, r) {
+        if (w <= 0) return;
+        r = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      const hitAreas = [];
+
+      tracks.forEach((track, ti) => {
+        const yLabel = ti * (LABEL_H + TRACK_H + GAP);
+        const yTrack = yLabel + LABEL_H;
+        const segs = segFor[track.key];
+        const totalSec = segs.reduce((s, d) => s + d.seconds, 0);
+
+        // Label + total
+        ctx.font = `600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+        ctx.fillStyle = '#555';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(track.label, 0, yLabel + LABEL_H / 2);
+        if (totalSec > 0) {
+          ctx.fillStyle = track.color;
+          const lw = ctx.measureText(track.label).width;
+          ctx.fillText(' · ' + fmtSec(totalSec), lw, yLabel + LABEL_H / 2);
+        }
+
+        // Track background
+        ctx.fillStyle = 'rgba(0,0,0,0.06)';
+        roundRect(0, yTrack, cssW, TRACK_H, TRACK_H / 2);
+        ctx.fill();
+
+        // Segments
+        segs.forEach(seg => {
+          const x = toX(new Date(seg.dateTime).getTime());
+          const w = Math.max(toW(seg.seconds * 1000), 3);
+          const pad = 5;
+          ctx.fillStyle = track.color;
+          roundRect(x, yTrack + pad, w, TRACK_H - pad * 2, Math.min(w / 2, (TRACK_H - pad * 2) / 2));
+          ctx.fill();
+          hitAreas.push({ x, y: yTrack, w, h: TRACK_H, seconds: seg.seconds, label: track.label, color: track.color });
+        });
+      });
+
+      // Time axis
+      const axisY = tracks.length * (LABEL_H + TRACK_H + GAP) + 16;
+      const fmtTime = ms => new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      ctx.font = `11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+      ctx.fillStyle = '#888';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';  ctx.fillText(fmtTime(sleepStart), 0, axisY);
+      ctx.textAlign = 'center'; ctx.fillText(fmtTime(sleepStart + totalMs / 2), cssW / 2, axisY);
+      ctx.textAlign = 'right';  ctx.fillText(fmtTime(sleepEnd), cssW, axisY);
+
+      // Tooltip
+      let tooltip = canvas.parentElement.querySelector('.sleep-tl-tooltip');
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.className = 'sleep-tl-tooltip';
+        tooltip.style.cssText = 'position:absolute;background:rgba(0,0,0,0.75);color:#fff;padding:5px 10px;border-radius:6px;font-size:12px;pointer-events:none;display:none;z-index:20;white-space:nowrap';
+        canvas.parentElement.appendChild(tooltip);
+      }
+
+      canvas.onmousemove = e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const hit = hitAreas.find(a => mx >= a.x && mx <= a.x + a.w && my >= a.y && my <= a.y + a.h);
+        if (hit) {
+          tooltip.style.display = 'block';
+          tooltip.style.left = (mx + 12) + 'px';
+          tooltip.style.top  = (my - 32) + 'px';
+          tooltip.innerHTML = `<span style="color:${hit.color}">■</span> ${hit.label}: <strong>${fmtSec(hit.seconds)}</strong>`;
+          canvas.style.cursor = 'crosshair';
+        } else {
+          tooltip.style.display = 'none';
+          canvas.style.cursor = 'default';
+        }
+      };
+      canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
+    }
+
+    function initSleepTimelines(container) {
+      container.querySelectorAll('canvas[data-sleep]').forEach(renderSleepTimeline);
     }
 
     function selectSleepRecord(patientId, idx) {
