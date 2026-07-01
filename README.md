@@ -52,6 +52,7 @@ Backend API built with NestJS for Fitbit Web API integration. A POC that allows 
   - [Token Expiration](#token-expiration)
   - [Days Without the Watch](#days-without-the-watch)
   - [Hardware Limitations (Flex 2 and Inspire HR)](#hardware-limitations-flex-2-and-inspire-hr)
+  - [Reverse Proxy / Subpath Deployment](#reverse-proxy--subpath-deployment)
 - [Next Steps](#next-steps)
   - [Daily Goals per Patient](#daily-goals-per-patient)
   - [Other Candidates](#other-candidates)
@@ -68,12 +69,15 @@ System with doctor and patient registration, OAuth2 authentication with Fitbit, 
 - Fitbit token persistence in PostgreSQL
 - Automatic token refresh (15-minute buffer before expiration)
 - Cron job every 10 minutes to check device sync status
-- Sync history tracking per device (`SyncHistory` entity — stores `deviceId`, `batteryLevel` %, model name, type, and sync timestamp)
+- Sync history tracking per device (`SyncHistory` entity — stores `deviceId`, `batteryLevel` %, model name, type, and sync timestamp), throttled to one entry per 30 minutes unless the battery drops 5% or more
 - Battery level temporal chart (Chart.js) with device filter, date range, and per-entry selection
 - Activity, sleep, heart rate, profile, and device data
+- Sleep panel with per-record breakdown (main sleep + naps), 30-day average comparison per sleep stage, sleep latency and nocturnal awakening metrics, and a swimlane-style timeline chart with stage-transition lines and hover tooltips
 - Time series and intraday data (minute-by-minute)\*
 - Subscriptions (webhooks) and SSE for real-time data
 - Web interface for management and visualization
+- Docker deployment (multi-stage `Dockerfile` + Docker Compose for the API and database)
+- Reverse proxy / subpath-friendly deployment (`X-Forwarded-Prefix` support and a dynamic frontend base path)
 
 \* Intraday data requires a "Personal" application type or special approval from Fitbit.
 
@@ -106,8 +110,10 @@ npm install
 ### 2. Start the database
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
+
+> Running `docker compose up -d` without arguments starts **both** the PostgreSQL database and the API container (built from the `Dockerfile`). Use that instead of steps 3–5 for a fully containerized setup — just make sure your `.env` file (step 3) is in place first, since the API container loads it via `env_file`.
 
 ### 3. Configure environment variables
 
@@ -390,6 +396,15 @@ Sleep data summarises each sleep session logged automatically by the device.
 
 Disrupted sleep stages are associated with cardiovascular disease, diabetes, and cognitive decline.
 
+**Multiple records per day**: Fitbit logs one entry per sleep session — the main overnight sleep (`isMainSleep: true`) plus any naps. The web interface shows a tab selector ("★ Main Sleep" / "◌ Nap N") with an individual panel per record.
+
+**Additional per-record metrics**:
+- **Sleep latency**: time to fall asleep, derived from the first entry of the stage timeline (`levels.data[0]`) when it is a `wake` segment
+- **Nocturnal awakening**: total minutes of brief awakenings during the night, summed from Fitbit's `levels.shortData` (sub-minute `wake` events not counted in the main stage summary)
+- **30-day average comparison**: each stage (deep/light/REM/wake) is compared against Fitbit's `thirtyDayAvgMinutes`, shown only for the main sleep record (naps have no 30-day baseline)
+
+**Sleep timeline chart**: a swimlane-style canvas chart with one horizontal track per stage (deep, light, REM, total awake, nocturnal awakening), built from Fitbit's per-stage timeline (`levels.data` / `levels.shortData`). Vertical lines connect consecutive stage transitions, colored by the originating stage, and hovering a segment shows a tooltip with its duration.
+
 ---
 
 ### VO2 Max (Cardio Fitness Score)
@@ -489,6 +504,13 @@ This API detects this pattern (`steps < 10` and `sedentaryMinutes > 1,400`) and 
 - **Heart rate**: Flex 2 has no optical HR sensor
 - **Sleep stages**: Flex 2 returns basic sleep only (awake/asleep/restless)
 - **SpO2, temperature, ECG, HRV**: Neither model has these sensors
+
+### Reverse Proxy / Subpath Deployment
+
+When deployed behind a reverse proxy (e.g., NGINX) under a subpath (e.g., `https://example.com/fitbit-api/`), the app needs to know that prefix to build correct redirect URLs and API calls:
+
+- **OAuth callback redirect**: `GET /fitbit/callback` reads the `X-Forwarded-Prefix` header to prefix the `/fitbit/connect` redirect. Configure your reverse proxy to send it (e.g., `proxy_set_header X-Forwarded-Prefix /fitbit-api;` in NGINX).
+- **Frontend API base**: the web interface (`public/index.html`, `public/fitbit-connect.html`) derives its API base URL from `window.location.pathname` at runtime, so it works under any subpath without a build-time configuration.
 
 ## Next Steps
 

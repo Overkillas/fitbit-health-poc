@@ -52,6 +52,7 @@ API backend desenvolvida com NestJS para integração com a API do Fitbit. POC q
   - [Expiração de Tokens](#expiração-de-tokens)
   - [Dias sem o relógio](#dias-sem-o-relógio)
   - [Limitações de Hardware (Flex 2 e Inspire HR)](#limitações-de-hardware-flex-2-e-inspire-hr)
+  - [Deploy atrás de Reverse Proxy / Subpath](#deploy-atrás-de-reverse-proxy--subpath)
 - [Próximos Passos](#próximos-passos)
   - [Metas Diárias por Paciente](#metas-diárias-por-paciente)
   - [Outros Candidatos](#outros-candidatos)
@@ -68,12 +69,15 @@ Sistema com cadastro de médicos e pacientes, autenticação OAuth2 com Fitbit, 
 - Persistência de tokens Fitbit no banco (PostgreSQL)
 - Auto-refresh de tokens (buffer de 15 min antes da expiração)
 - Cron job a cada 10 min para verificar sync dos dispositivos
-- Histórico de sincronizações por dispositivo (entidade `SyncHistory` — armazena `deviceId`, `batteryLevel` %, modelo, tipo e timestamp de sync)
+- Histórico de sincronizações por dispositivo (entidade `SyncHistory` — armazena `deviceId`, `batteryLevel` %, modelo, tipo e timestamp de sync), com throttle de uma entrada a cada 30 minutos, exceto se a bateria cair 5% ou mais
 - Gráfico temporal de bateria (Chart.js) com filtro por dispositivo, intervalo de datas e seleção individual de entradas
 - Dados de atividade, sono, frequência cardíaca, perfil e dispositivos
+- Painel de sono com detalhamento por registro (sono principal + cochilos), comparação com média de 30 dias por estágio, métricas de latência do sono e despertar noturno, e gráfico de timeline com linhas de transição entre estágios e tooltips ao passar o mouse
 - Time series e intraday (minuto a minuto)*
 - Subscriptions (webhooks) e SSE para dados em tempo real
 - Interface web para gerenciamento e visualização
+- Deploy via Docker (`Dockerfile` multi-stage + Docker Compose para API e banco)
+- Deploy compatível com reverse proxy / subpath (suporte a `X-Forwarded-Prefix` e base path dinâmico no frontend)
 
 * Dados intraday requerem aplicação tipo "Personal" ou aprovação especial do Fitbit.
 
@@ -106,8 +110,10 @@ npm install
 ### 2. Suba o banco de dados
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
+
+> Rodar `docker compose up -d` sem argumentos sobe **tanto** o banco PostgreSQL quanto o container da API (construído a partir do `Dockerfile`). Use essa opção no lugar dos passos 3–5 para um setup totalmente containerizado — só garanta que o arquivo `.env` (passo 3) já exista, já que o container da API o carrega via `env_file`.
 
 ### 3. Configure as variáveis de ambiente
 
@@ -399,6 +405,15 @@ O Fitbit retorna dois formatos de dados de sono: **Stages** (com granularidade d
 
 Estágios do sono perturbados estão associados a doenças cardiovasculares, diabetes e declínio cognitivo.
 
+**Múltiplos registros por dia**: o Fitbit registra uma entrada por sessão de sono — o sono principal da noite (`isMainSleep: true`) mais eventuais cochilos. A interface web exibe um seletor de abas ("★ Sono Principal" / "◌ Cochilo N") com um painel individual por registro.
+
+**Métricas adicionais por registro**:
+- **Latência do sono**: tempo até adormecer, derivado da primeira entrada da timeline de estágios (`levels.data[0]`) quando ela é um segmento `wake`
+- **Despertar noturno**: total de minutos de despertares breves durante a noite, somados a partir de `levels.shortData` do Fitbit (eventos `wake` de menos de um minuto, não contabilizados no resumo principal de estágios)
+- **Comparação com média de 30 dias**: cada estágio (deep/light/REM/wake) é comparado com o `thirtyDayAvgMinutes` do Fitbit, exibido apenas para o registro de sono principal (cochilos não têm baseline de 30 dias)
+
+**Gráfico de timeline do sono**: um gráfico canvas no estilo "swimlane", com uma faixa horizontal por estágio (profundo, leve, REM, total acordado, despertar noturno), construído a partir da timeline de estágios do Fitbit (`levels.data` / `levels.shortData`). Linhas verticais conectam transições consecutivas entre estágios, coloridas conforme o estágio de origem, e passar o mouse sobre um segmento exibe um tooltip com sua duração.
+
 ---
 
 ### VO2 Max (Aptidão Cardiovascular)
@@ -505,6 +520,13 @@ Esta API detecta esse padrão (`steps < 10` e `sedentaryMinutes > 1.400`) e exib
 - **Frequência cardíaca**: Flex 2 não possui sensor óptico de HR
 - **Estágios de sono**: Flex 2 retorna apenas sono básico (awake/asleep/restless)
 - **SpO2, temperatura, ECG, HRV**: Nenhum dos dois modelos possui esses sensores
+
+### Deploy atrás de Reverse Proxy / Subpath
+
+Ao rodar atrás de um reverse proxy (ex.: NGINX) sob um subpath (ex.: `https://exemplo.com/fitbit-api/`), a aplicação precisa conhecer esse prefixo para montar corretamente as URLs de redirect e as chamadas de API:
+
+- **Redirect do callback OAuth**: `GET /fitbit/callback` lê o header `X-Forwarded-Prefix` para prefixar o redirect para `/fitbit/connect`. Configure seu reverse proxy para enviá-lo (ex.: `proxy_set_header X-Forwarded-Prefix /fitbit-api;` no NGINX).
+- **Base de API do frontend**: a interface web (`public/index.html`, `public/fitbit-connect.html`) deriva a URL base da API a partir de `window.location.pathname` em tempo de execução, funcionando sob qualquer subpath sem configuração em tempo de build.
 
 ## Próximos Passos
 
