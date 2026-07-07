@@ -99,6 +99,9 @@
     .hr-zone-name { font-size: 12px; font-weight: 600; min-width: 80px; }
     .hr-zone-value { font-size: 12px; color: #666; min-width: 60px; text-align: right; }
 
+    .progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
     .sleep-stage { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
     .sleep-stage-color { width: 12px; height: 12px; border-radius: 3px; }
     .sleep-stage-name { font-size: 13px; flex: 1; }
@@ -550,13 +553,42 @@
         <span><strong>Relógio não usado neste dia.</strong> As calorias exibidas são estimativa de metabolismo basal (TMB), não dados medidos.</span>
       </div>`;
 
+    // Recomendação de atividade física moderada-vigorosa (OMS/AHA): ~150min/semana, equivalente a ~21min/dia
+    const OMS_DAILY_ACTIVE_MIN = 21;
+    const OMS_WEEKLY_ACTIVE_MIN = 150;
+
+    function getActiveZoneMinutes(summary) {
+      const azm = summary?.activeZoneMinutes;
+      if (azm == null) return null;
+      if (typeof azm === 'number') return azm;
+      return azm.activeZoneMinutes ?? azm.totalMinutes ?? null;
+    }
+
+    function renderProgressBar(actual, goal, { unit = '', decimals = 0, colorMode = 'goal' } = {}) {
+      if (goal == null || goal <= 0 || actual == null) {
+        return '<div class="value">-</div>';
+      }
+      const pct = Math.min(100, Math.round((actual / goal) * 100));
+      const color = pct >= 100
+        ? '#388e3c'
+        : (colorMode === 'guideline' && pct < 50 ? '#f57c00' : '#667eea');
+      const fmt = n => decimals > 0 ? n.toFixed(decimals) : Math.round(n).toLocaleString();
+      return `
+        <div class="value" style="font-size:14px">${fmt(actual)}${unit} / ${fmt(goal)}${unit}</div>
+        <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div style="font-size:11px;color:#888;margin-top:2px">${pct}%</div>`;
+    }
+
     function renderActivityData(patientsData, container) {
       container.innerHTML = patientsData.map(patient => {
         const user = allUsers.find(u => u.id === patient.userId);
         const name = user?.name || `Paciente ${patient.userId}`;
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const s = patient.data.summary || {};
+        const g = patient.data.goals || {};
         const notWorn = watchNotWorn(s);
+        const azm = getActiveZoneMinutes(s);
+        const activeMin = (s.fairlyActiveMinutes || 0) + (s.veryActiveMinutes || 0);
         return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-${notWorn ? 'disconnected' : 'connected'}">${notWorn ? 'Sem dados' : 'OK'}</span></div><div class="patient-body">
           ${notWorn ? WATCH_NOT_WORN_BANNER : ''}
           <div class="data-grid">
@@ -565,6 +597,12 @@
             <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
             <div class="data-item"><div class="value">${s.floors || 0}</div><div class="label">Andares</div></div>
             <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min Ativos</div></div>
+            ${azm != null ? `<div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}"><div class="value">${azm}</div><div class="label">Zona Ativa (min)</div></div>` : ''}
+          </div>
+          <div class="data-grid" style="margin-top:12px">
+            <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(s.steps || 0, g.steps, { decimals: 0 })}<div class="label">Meta Passos</div></div>
+            <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(s.caloriesOut || 0, g.caloriesOut, { decimals: 0 })}<div class="label">Meta Calorias</div></div>
+            <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(activeMin, OMS_DAILY_ACTIVE_MIN, { decimals: 0, colorMode: 'guideline' })}<div class="label">Min. Ativos (rec. OMS)</div></div>
           </div>
         </div></div>`;
       }).join('');
@@ -591,8 +629,13 @@
         if (!patient.success) return `<div class="patient-data-card"><div class="patient-header"><h3>${name}</h3><span class="badge badge-disconnected">Erro</span></div><div class="patient-body"><p style="color:#dc3545">${patient.error}</p></div></div>`;
         const week = patient.data || [];
         const totalSteps = week.reduce((sum, d) => sum + (d.activity?.summary?.steps || 0), 0);
+        const weeklyActiveMin = week.reduce((sum, d) => sum + (d.activity?.summary?.fairlyActiveMinutes || 0) + (d.activity?.summary?.veryActiveMinutes || 0), 0);
         return `<div class="patient-data-card"><div class="patient-header"><div><h3>${name}</h3>${renderSyncBadge(patient.userId)}</div><span class="badge badge-connected">7 dias</span></div><div class="patient-body">
-          <div class="data-grid"><div class="data-item"><div class="value">${totalSteps.toLocaleString()}</div><div class="label">Total Passos</div></div><div class="data-item"><div class="value">${Math.round(totalSteps/7).toLocaleString()}</div><div class="label">Média/Dia</div></div></div>
+          <div class="data-grid">
+            <div class="data-item"><div class="value">${totalSteps.toLocaleString()}</div><div class="label">Total Passos</div></div>
+            <div class="data-item"><div class="value">${Math.round(totalSteps/7).toLocaleString()}</div><div class="label">Média/Dia</div></div>
+            <div class="data-item">${renderProgressBar(weeklyActiveMin, OMS_WEEKLY_ACTIVE_MIN, { decimals: 0, colorMode: 'guideline' })}<div class="label">Min. Ativos (rec. OMS/semana)</div></div>
+          </div>
           <table style="margin-top:16px;font-size:13px"><thead><tr><th>Data</th><th>Passos</th><th>Calorias</th></tr></thead><tbody>
           ${week.map(d => `<tr><td>${formatDate(d.date)}</td><td>${d.activity?.summary?.steps?.toLocaleString()||'-'}</td><td>${d.activity?.summary?.caloriesOut?.toLocaleString()||'-'}</td></tr>`).join('')}
           </tbody></table></div></div>`;
@@ -749,6 +792,9 @@
       const heartRate = patient.heartRate || {};
       const summary = activity.summary || {};
       const goals = activity.goals || {};
+      const notWorn = watchNotWorn(summary);
+      const azm = getActiveZoneMinutes(summary);
+      const activeMin = (summary.fairlyActiveMinutes || 0) + (summary.veryActiveMinutes || 0);
       const sleepRecords = sleep.sleep || [];
       const sleepDefaultIdx = (() => { const i = sleepRecords.findIndex(s => s.isMainSleep); return i >= 0 ? i : 0; })();
       const sleepData = sleepRecords[sleepDefaultIdx] || {};
@@ -806,7 +852,7 @@
             ` : ''}
 
             <!-- ATIVIDADE COMPLETA -->
-            ${watchNotWorn(summary) ? WATCH_NOT_WORN_BANNER : ''}
+            ${notWorn ? WATCH_NOT_WORN_BANNER : ''}
             <div class="section-title">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"/></svg>
               Atividade Completa
@@ -824,6 +870,7 @@
               <div class="data-item"><div class="value">${summary.fairlyActiveMinutes || 0}</div><div class="label">Min. Moderado</div></div>
               <div class="data-item"><div class="value">${summary.veryActiveMinutes || 0}</div><div class="label">Min. Intenso</div></div>
               <div class="data-item"><div class="value">${summary.marginalCalories || 0}</div><div class="label">Cal. Marginais</div></div>
+              ${azm != null ? `<div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}"><div class="value">${azm}</div><div class="label">Zona Ativa (min)</div></div>` : ''}
             </div>
 
             <!-- METAS -->
@@ -832,11 +879,12 @@
               Metas do Dia
             </div>
             <div class="data-grid">
-              <div class="data-item"><div class="value">${goals.steps?.toLocaleString() || '-'}</div><div class="label">Meta Passos</div></div>
-              <div class="data-item"><div class="value">${goals.caloriesOut?.toLocaleString() || '-'}</div><div class="label">Meta Calorias</div></div>
-              <div class="data-item"><div class="value">${goals.distance != null ? (goals.distance / 1000000).toFixed(2) + ' km' : '-'}</div><div class="label">Meta Distância</div></div>
-              <div class="data-item"><div class="value">${goals.floors || '-'}</div><div class="label">Meta Andares</div></div>
-              <div class="data-item"><div class="value">${goals.activeMinutes || '-'}</div><div class="label">Meta Min. Ativos</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.steps || 0, goals.steps, { decimals: 0 })}<div class="label">Meta Passos</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.caloriesOut || 0, goals.caloriesOut, { decimals: 0 })}<div class="label">Meta Calorias</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.distances?.[0]?.distance || 0, goals.distance != null ? goals.distance / 1000000 : null, { unit: ' km', decimals: 2 })}<div class="label">Meta Distância</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.floors || 0, goals.floors, { decimals: 0 })}<div class="label">Meta Andares</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.veryActiveMinutes || 0, goals.activeMinutes, { decimals: 0 })}<div class="label">Meta Min. Ativos</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(activeMin, OMS_DAILY_ACTIVE_MIN, { decimals: 0, colorMode: 'guideline' })}<div class="label">Min. Ativos (rec. OMS)</div></div>
             </div>
 
             <!-- FREQUÊNCIA CARDÍACA -->
