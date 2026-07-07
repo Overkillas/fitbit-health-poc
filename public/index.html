@@ -511,7 +511,11 @@
         if (currentDataTab === 'profile') {
           endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/profile`;
         } else if (currentDataTab === 'week') {
-          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/week?weekStart=${date}`;
+          const weekEnd = date || new Date().toISOString().split('T')[0];
+          const weekStartDate = new Date(weekEnd + 'T00:00:00');
+          weekStartDate.setDate(weekStartDate.getDate() - 6);
+          const weekStart = weekStartDate.toISOString().split('T')[0];
+          endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/week?weekStart=${weekStart}`;
         } else {
           endpoint = `${API_BASE}/users/${doctorId}/patients/fitbit/${currentDataTab}${date ? '?date=' + date : ''}`;
         }
@@ -937,11 +941,12 @@
                     ${latencyMin > 0 ? `<div class="data-item"><div class="value">${latencyMin} min</div><div class="label">Latência do Sono</div></div>` : ''}
                   </div>
                   ${Object.keys(lvls).length > 0 ? (() => {
-                    const stageRow = (color, name, stage) => {
+                    const stageRow = (color, name, stage, lowerIsBetter = false) => {
                       if (!stage) return '';
                       const diff = (r.isMainSleep && stage.thirtyDayAvgMinutes != null && stage.thirtyDayAvgMinutes > 0) ? stage.minutes - stage.thirtyDayAvgMinutes : null;
+                      const isGood = diff != null && (lowerIsBetter ? diff <= 0 : diff >= 0);
                       const diffStr = diff != null
-                        ? `<span style="font-size:11px;color:${diff >= 0 ? '#388e3c' : '#d32f2f'};margin-left:6px">${diff >= 0 ? '+' : ''}${diff} vs média 30d</span>`
+                        ? `<span style="font-size:11px;color:${isGood ? '#388e3c' : '#d32f2f'};margin-left:6px">${diff >= 0 ? '+' : ''}${diff} vs média 30d</span>`
                         : '';
                       return `<div class="sleep-stage">
                         <div class="sleep-stage-color" style="background:${color}"></div>
@@ -959,7 +964,7 @@
                         ${stageRow('#3f51b5', 'Sono Profundo', lvls.deep)}
                         ${stageRow('#2196f3', 'Sono Leve', lvls.light)}
                         ${stageRow('#9c27b0', 'Sono REM', lvls.rem)}
-                        ${stageRow('#ff9800', 'Acordado', lvls.wake)}
+                        ${stageRow('#ff9800', 'Acordado', lvls.wake, true)}
                       </div>`;
                   })() : ''}
                   ${r.startTime ? `
