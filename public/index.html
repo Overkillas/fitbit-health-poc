@@ -568,15 +568,16 @@
       if (goal == null || goal <= 0 || actual == null) {
         return '<div class="value">-</div>';
       }
-      const pct = Math.min(100, Math.round((actual / goal) * 100));
-      const color = pct >= 100
+      const realPct = Math.round((actual / goal) * 100);
+      const barPct = Math.min(100, realPct);
+      const color = realPct >= 100
         ? '#388e3c'
-        : (colorMode === 'guideline' && pct < 50 ? '#f57c00' : '#667eea');
+        : (colorMode === 'guideline' && realPct < 50 ? '#f57c00' : '#667eea');
       const fmt = n => decimals > 0 ? n.toFixed(decimals) : Math.round(n).toLocaleString();
       return `
         <div class="value" style="font-size:14px">${fmt(actual)}${unit} / ${fmt(goal)}${unit}</div>
-        <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-        <div style="font-size:11px;color:#888;margin-top:2px">${pct}%</div>`;
+        <div class="progress-bar"><div class="progress-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+        <div style="font-size:11px;color:#888;margin-top:2px">${realPct}%</div>`;
     }
 
     function renderActivityData(patientsData, container) {
@@ -596,7 +597,7 @@
             <div class="data-item"><div class="value" style="${notWorn ? 'color:#bbb' : ''}">${s.caloriesOut?.toLocaleString() || 0}</div><div class="label">Cal. Total${notWorn ? ' (TMB)' : ''}</div></div>
             <div class="data-item"><div class="value">${(s.distances?.[0]?.distance || 0).toFixed(2)}km</div><div class="label">Distância</div></div>
             <div class="data-item"><div class="value">${s.floors || 0}</div><div class="label">Andares</div></div>
-            <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min Ativos</div></div>
+            <div class="data-item"><div class="value">${s.veryActiveMinutes || 0}</div><div class="label">Min. Intensos</div></div>
             ${azm != null ? `<div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}"><div class="value">${azm}</div><div class="label">Zona Ativa (min)</div></div>` : ''}
           </div>
           <div class="data-grid" style="margin-top:12px">
@@ -883,7 +884,7 @@
               <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.caloriesOut || 0, goals.caloriesOut, { decimals: 0 })}<div class="label">Meta Calorias</div></div>
               <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.distances?.[0]?.distance || 0, goals.distance != null ? goals.distance / 1000000 : null, { unit: ' km', decimals: 2 })}<div class="label">Meta Distância</div></div>
               <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.floors || 0, goals.floors, { decimals: 0 })}<div class="label">Meta Andares</div></div>
-              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(summary.veryActiveMinutes || 0, goals.activeMinutes, { decimals: 0 })}<div class="label">Meta Min. Ativos</div></div>
+              <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(activeMin, goals.activeMinutes, { decimals: 0 })}<div class="label">Meta Min. Ativos</div></div>
               <div class="data-item" style="${notWorn ? 'opacity:0.5' : ''}">${renderProgressBar(activeMin, OMS_DAILY_ACTIVE_MIN, { decimals: 0, colorMode: 'guideline' })}<div class="label">Min. Ativos (rec. OMS)</div></div>
             </div>
 
@@ -911,10 +912,11 @@
             <!-- VO2 MAX -->
             ${(() => {
               const entries = syncInfo?.cardioScore?.cardioScore || [];
-              const latest = entries.length > 0 ? entries[entries.length - 1] : null;
-              const vo2Str = latest?.value?.vo2Max || null;
+              const measured = getRealVo2Measurement(entries);
+              const vo2Str = measured?.value?.vo2Max || null;
               if (!vo2Str) return '';
               const cat = getVo2MaxCategory(vo2Str);
+              const isStale = entries.length > 0 && measured.dateTime !== entries[entries.length - 1].dateTime;
               return `
                 <div class="section-title">
                   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
@@ -930,10 +932,11 @@
                     <div class="label">Classificação</div>
                   </div>
                   <div class="data-item">
-                    <div class="value" style="font-size:13px">${latest.dateTime}</div>
+                    <div class="value" style="font-size:13px">${measured.dateTime}</div>
                     <div class="label">Última medição</div>
                   </div>
                 </div>
+                ${isStale ? `<div style="font-size:12px;color:#f57c00;margin-top:8px">⚠ Valor sem alteração desde ${measured.dateTime} — dispositivo pode não ter sincronizado dados novos.</div>` : ''}
               `;
             })()}
 
@@ -1283,13 +1286,25 @@
       return { label: 'Baixo', color: '#d32f2f' };
     }
 
+    // O endpoint cardioscore preenche cada dia do intervalo repetindo o último valor
+    // conhecido quando não há medição nova (relógio sem sync). Andar pra trás até o
+    // valor mudar dá a data real da última medição, em vez da última data do intervalo.
+    function getRealVo2Measurement(entries) {
+      if (!entries || entries.length === 0) return null;
+      const lastVal = entries[entries.length - 1].value?.vo2Max;
+      let i = entries.length - 1;
+      while (i > 0 && entries[i - 1].value?.vo2Max === lastVal) i--;
+      return entries[i];
+    }
+
     function renderCardioScoreData(patients, cardioData, container) {
       container.innerHTML = patients.map(patient => {
         const result = cardioData[patient.id];
         const entries = result?.cardioScore || [];
-        const latest = entries.length > 0 ? entries[entries.length - 1] : null;
-        const vo2Str = latest?.value?.vo2Max || null;
+        const measured = getRealVo2Measurement(entries);
+        const vo2Str = measured?.value?.vo2Max || null;
         const category = getVo2MaxCategory(vo2Str);
+        const isStale = measured && entries.length > 0 && measured.dateTime !== entries[entries.length - 1].dateTime;
 
         return `
           <div class="patient-data-card">
@@ -1309,10 +1324,11 @@
                     <div class="label">Classificação</div>
                   </div>
                   <div class="data-item">
-                    <div class="value">${latest.dateTime}</div>
+                    <div class="value">${measured.dateTime}</div>
                     <div class="label">Última medição</div>
                   </div>
                 </div>
+                ${isStale ? `<div style="font-size:12px;color:#f57c00;margin:-8px 0 12px">⚠ Valor sem alteração desde ${measured.dateTime} — dispositivo pode não ter sincronizado dados novos.</div>` : ''}
               ` : '<p style="color:#999;font-size:13px;margin-bottom:12px">Sem dados de VO2 Max disponíveis para este período.</p>'}
 
               ${entries.length > 1 ? `

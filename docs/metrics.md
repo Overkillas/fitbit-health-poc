@@ -157,8 +157,25 @@ Classificados com base em **METs (Equivalente Metabólico da Tarefa)** — razã
 A OMS recomenda ao menos 150 min/semana de atividade moderada a intensa, equivalendo a ~21 min/dia de `fairlyActive + veryActive`.
 
 **Frontend**:
-- Dados Resumidos: exibe apenas `veryActiveMinutes` com o rótulo "Min Ativos"
+- Dados Resumidos: exibe apenas `veryActiveMinutes` com o rótulo "Min. Intensos"
 - Dados Completos: exibe todos os 4 campos separados na grade de Atividade Completa
+
+**Indicador "Min. Ativos (rec. OMS)"**: barra de progresso calculada pelo frontend (`activeMin = fairlyActiveMinutes + veryActiveMinutes`) comparada contra a recomendação da OMS/AHA — não é uma meta do Fitbit. Aparece em três lugares:
+- Dados Resumidos (aba Atividade): `activeMin` do dia vs `OMS_DAILY_ACTIVE_MIN = 21`
+- Dados Completos (seção Metas do Dia): mesmo cálculo do dia
+- Dados Resumidos (aba Semana): soma de `activeMin` dos 7 dias vs `OMS_WEEKLY_ACTIVE_MIN = 150`
+
+---
+
+### Active Zone Minutes (`activeZoneMinutes`)
+
+| Campo API | `summary.activeZoneMinutes` |
+|---|---|
+| Tipo | `number` ou objeto (`{ activeZoneMinutes }` / `{ totalMinutes }`, depende da versão da API) |
+
+Métrica proprietária do Fitbit que pondera minutos de atividade por intensidade da frequência cardíaca (minutos em zona Cardio/Peak contam em dobro em relação à zona Fat Burn), somando contra a meta semanal de 150 "zone minutes" recomendada pela AHA. Só é retornada por dispositivos com sensor de FC.
+
+**Frontend**: extraída via `getActiveZoneMinutes(summary)` (lida com o campo numérico ou aninhado) e exibida como item "Zona Ativa (min)" — Dados Resumidos (aba Atividade) e Dados Completos (Atividade Completa). Some do grid quando o campo não vem na resposta (ex: Flex 2, sem sensor de FC).
 
 ---
 
@@ -169,13 +186,17 @@ A OMS recomenda ao menos 150 min/semana de atividade moderada a intensa, equival
 
 Metas diárias configuradas pelo usuário no app Fitbit. São alvos pessoais, não referências clínicas.
 
-| Campo API | Rótulo no frontend |
-|---|---|
-| `goals.steps` | Meta Passos |
-| `goals.caloriesOut` | Meta Calorias |
-| `goals.distance` | Meta Distância (km) |
-| `goals.floors` | Meta Andares |
-| `goals.activeMinutes` | Meta Min. Ativos |
+| Campo API | Comparado contra | Rótulo no frontend |
+|---|---|---|
+| `goals.steps` | `summary.steps` | Meta Passos |
+| `goals.caloriesOut` | `summary.caloriesOut` | Meta Calorias |
+| `goals.distance` | `summary.distances[0].distance` | Meta Distância (km) |
+| `goals.floors` | `summary.floors` | Meta Andares |
+| `goals.activeMinutes` | `fairlyActiveMinutes + veryActiveMinutes` | Meta Min. Ativos |
+
+> **Meta Min. Ativos**: `goals.activeMinutes` do Fitbit representa a meta combinada de minutos moderados + intensos (a mesma métrica usada pelo app oficial do Fitbit para o badge "Active Minutes"). Por isso o frontend soma `fairlyActiveMinutes + veryActiveMinutes` para comparar contra essa meta — usar só `veryActiveMinutes` subestimaria o progresso.
+
+**Barras de progresso** (`renderProgressBar`): quando o valor real ultrapassa a meta, a barra visual trava em 100% (não faz sentido "estourar" a barra), mas o percentual exibido em texto mostra o valor real (ex: `124%`, `319%`), sem arredondar para baixo.
 
 ---
 
@@ -226,7 +247,7 @@ Cada zona retorna: `minutes` (tempo na zona) e `caloriesOut` (calorias queimadas
 
 ---
 
-## VO2 Max
+## VO2 Max  
 
 **Endpoint de origem**: `GET /users/:id/fitbit/cardio-score?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`
 **Campo na resposta**: `cardioScore[].value.vo2Max`
@@ -240,14 +261,18 @@ O Fitbit Inspire HR **estima** o VO2 Max usando dados de frequência cardíaca d
 **A API retorna um intervalo** (ex: `"40-44"`) em vez de um valor preciso, refletindo o caráter estimado da medição. O Fitbit chama isso de **Cardio Fitness Score**.
 
 **Dados disponíveis por entrada**:
-- `dateTime`: data da estimativa (formato `YYYY-MM-DD`)
+- `dateTime`: data da entrada retornada pela API (formato `YYYY-MM-DD`) — **não é necessariamente a data em que a medição foi calculada**, ver nota abaixo
 - `value.vo2Max`: intervalo em mL/kg/min (ex: `"37-41"`)
 
+> **Atenção — preenchimento retroativo (forward-fill)**: o endpoint `cardioscore/date/{start}/{end}` retorna uma entrada para **cada dia do intervalo consultado**, mesmo quando não há medição nova naquele dia. Quando o relógio não sincroniza, o Fitbit repete o último valor conhecido sob as datas seguintes — já que o VO2 Max só pode ser recalculado a partir de dados enviados durante um sync, uma entrada datada de depois do último sync real nunca é uma medição nova, é sempre um eco do último valor.
+>
+> Por isso o frontend **não** usa a última entrada do array como "última medição". A função `getRealVo2Measurement(entries)` anda de trás pra frente a partir do fim do array enquanto o valor de `vo2Max` permanecer igual, e retorna a entrada mais antiga dessa sequência — ou seja, a primeira data (dentro da janela consultada) em que aquele valor apareceu. Quando a data real difere da última data do intervalo consultado, o frontend exibe um aviso: "⚠ Valor sem alteração desde {data} — dispositivo pode não ter sincronizado dados novos."
+
 **Frontend**:
-- Exibe o valor mais recente do intervalo consultado (últimos 30 dias)
+- Exibe o valor "real" mais recente (ver nota acima), calculado a partir da janela de 30 dias consultada
 - Mostra classificação com cor (verde / verde-oliva / laranja / vermelho)
-- Exibe data da última medição
-- Em Dados Resumidos: mostra tabela de histórico se houver mais de 1 registro
+- Exibe data real da última medição, com aviso se o valor estiver desatualizado em relação ao fim do intervalo consultado
+- Em Dados Resumidos: mostra tabela de histórico com todas as entradas (inclusive as repetidas) se houver mais de 1 registro
 
 ---
 
@@ -371,6 +396,7 @@ Retorna 7 dias consecutivos de dados de atividade, começando em `weekStart`. Ca
 **Frontend exibe por paciente**:
 - Total de passos nos 7 dias
 - Média de passos por dia
+- Barra "Min. Ativos (rec. OMS/semana)": soma de `fairlyActiveMinutes + veryActiveMinutes` dos 7 dias vs 150 min (ver [Minutos por Intensidade](#minutos-por-intensidade))
 - Tabela dia a dia: data | passos | calorias
 
 ---
